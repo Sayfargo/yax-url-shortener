@@ -16,10 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Мок для сервисного слоя, так как без него не получится создать экземпляр handler
 type MockURLService struct {
 	mock.Mock
 }
 
+// Все методы, которые реализует сервисный слой для того, чтобы мок удовлетворял интерфейсу
 func (m *MockURLService) CreateShortUrl(ctx context.Context, url string) (string, error) {
 	args := m.Called(ctx, url)
 	return args.String(0), args.Error(1)
@@ -30,6 +32,8 @@ func (m *MockURLService) GetOriginalUrl(ctx context.Context, shortCode string) (
 	return args.String(0), args.Error(1)
 }
 
+// Табличный тест с кейсами для обработчика Create, который принимает ссылку и отвечает короткой ссылкой
+// Здесь только плохиие кейсы, которые явно должны вернуть ошибку
 func TestCreate_Table(t *testing.T) {
 	testcases := []struct {
 		name         string
@@ -47,7 +51,6 @@ func TestCreate_Table(t *testing.T) {
 
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
-			// Mock
 			mockSvc := new(MockURLService)
 			// Заглушка для заглушки, просто чтоб была
 			mockSvc.On("CreateShortUrl", mock.Anything, mock.Anything).Return("", nil)
@@ -71,6 +74,7 @@ func TestCreate_Table(t *testing.T) {
 	}
 }
 
+// Табличный тест с кейсами для обработчика Redirect. Проверка на bad кейсы
 func TestRedirect_Table(t *testing.T) {
 	testcases := []struct {
 		name         string
@@ -116,15 +120,15 @@ func TestRedirect_Table(t *testing.T) {
 		})
 	}
 }
+
+// Весёлый кейс для обработчика Redirect с использованием корректных данных
 func TestRedirect_HappyCase(t *testing.T) {
 	method := http.MethodGet
 	shortCode := "Dkjf789E"
-	// Путь с param в виде шорт кода
 	target := fmt.Sprintf("/%s", shortCode) // /{id}
-	// Expected Location header
+	// Ожидаемый url который должен вернуть сервер в своём ответе (в header)
 	expectedLocation := "https://practicum.yandex.ru/go-developer-basic/?utm_source=ya&utm_medium=cpc&utm_campaign=Yan_Sch_RF_Prog_goDeba_b2c_Gener_Regular_Double_460&utm_content=sty_search:s_none:cid_711044074:gid_5766687058:kw_---autotargeting:pid_205766687058:aid_1913818178131297445:crid_0:rid_205766687058:p_1:pty_premium:mty_:mkw_:dty_desktop:cgcid_26898027:rn_%D0%A0%D0%BE%D1%81%D1%82%D0%BE%D0%B2-%D0%BD%D0%B0-%D0%94%D0%BE%D0%BD%D1%83:rid_39&etext=2202.KjoxDN06I-3sj5_fsSRWOB0TSMATnrks0_yjlXz4VIt9yG7I4nH0y2lfhULhTcKlw9ebyjxB_nUVfFb_9yTKt2Z6cGluc2h2Z2RqbWF2b3c.9a6e93b16369f6b76e7982ecada5deb67b2bdcce&yclid=11936302318399520767"
 
-	// Mock
 	mockSvc := new(MockURLService)
 	mockSvc.On("GetOriginalUrl", mock.Anything, shortCode).Return(expectedLocation, nil)
 
@@ -148,8 +152,9 @@ func TestRedirect_HappyCase(t *testing.T) {
 	assert.Equal(t, http.StatusTemporaryRedirect, response.StatusCode)
 	assert.Equal(t, expectedLocation, response.Header.Get("Location"))
 }
+
+// Весёлый кейс для обработчика Create с использование корректных данных
 func TestCreate_HappyCase(t *testing.T) {
-	// Просто заранее прописываем чтобы было удобнее переиспользовать
 	method := http.MethodPost
 	target := "/"
 	header := "text/plain; charset=utf-8"
