@@ -32,7 +32,7 @@ func New() *App {
 
 	cache := core_storage.Init()
 	repo := repository.New(cache)
-	svc := service.New(repo)
+	svc := service.New(repo, new(service.GoNanoIDGenerator))
 	handler := handler.New(svc)
 	handler.Register(rootRouter)
 
