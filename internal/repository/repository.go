@@ -20,7 +20,8 @@ func New(cache *core_storage.Cache) *URLRepository {
 }
 
 var (
-	ErrNotExists = errors.New("row not found in db")
+	ErrNotExists     = errors.New("row not found in db")
+	ErrAlreadyExists = errors.New("row already exists")
 )
 
 func (r *URLRepository) Get(ctx context.Context, shortCode string) (string, error) {

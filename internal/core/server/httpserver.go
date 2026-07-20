@@ -13,6 +13,7 @@ type HTTPServer struct {
 	server *http.Server
 }
 
+// Добавить конфигурацию для более глубокой настройки http сервера
 func New(handler http.Handler) *HTTPServer {
 	return &HTTPServer{
 		server: &http.Server{

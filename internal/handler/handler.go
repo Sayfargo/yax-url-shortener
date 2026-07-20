@@ -12,6 +12,13 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
+/*
+	TODO:
+		В будущем заменить http.Error ответ на свой кастомный тип ошибок
+		И возвращать ошибки в Json формате
+
+*/
+
 type UrlShortener interface {
 	CreateShortUrl(ctx context.Context, url string) (string, error)
 	GetOriginalUrl(ctx context.Context, shortCode string) (string, error)
@@ -78,7 +85,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	shortedUrl, err := h.service.CreateShortUrl(r.Context(), url)
 	if err != nil {
-		// todo
+		/*
+			TODO:
+				Как только появится БД, нужно будет обрабатывать здесь ошибки.
+				Пока что обрабатывать особо нечего
+		*/
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
