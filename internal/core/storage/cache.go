@@ -5,6 +5,10 @@ import (
 	"sync"
 )
 
+/*
+	TODO: Здесь заменить in-memory на postgres или redis
+*/
+
 var (
 	ErrNotFound = errors.New("Key not found")
 )
