@@ -44,7 +44,7 @@ func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 	})
 
-	svc := New(mockRepo, new(GoNanoIDGenerator))
+	svc := New(mockRepo, new(GoNanoIDGenerator), "https://choto.com")
 
 	result, err := svc.GetOriginalUrl(context.Background(), "fKM29FzE")
 	assert.Empty(t, result)
@@ -67,7 +67,7 @@ func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 	})
 
-	svc := New(mockRepo, mockGenerator)
+	svc := New(mockRepo, mockGenerator, "https://choto.com")
 
 	expectedUrl := svc.buildShortedUrl("BULOCHKA")
 	require.NotEmpty(t, expectedUrl)
@@ -90,7 +90,7 @@ func TestGetOriginalUrl_ContextCanceled(t *testing.T) {
 		mockRepo.AssertNotCalled(t, "Get")
 	})
 
-	svc := New(mockRepo, new(GoNanoIDGenerator))
+	svc := New(mockRepo, new(GoNanoIDGenerator), "https://choto.com")
 
 	result, err := svc.GetOriginalUrl(ctx, "shortCode")
 	assert.Empty(t, result)
@@ -108,7 +108,7 @@ func TestCreateShortUrl_ContextCanceled(t *testing.T) {
 		mockRepo.AssertNotCalled(t, "Create")
 	})
 
-	svc := New(mockRepo, new(GoNanoIDGenerator))
+	svc := New(mockRepo, new(GoNanoIDGenerator), "https://choto.com")
 
 	result, err := svc.CreateShortUrl(ctx, "anything")
 	assert.Empty(t, result)
@@ -126,7 +126,7 @@ func TestGetOriginalUrl_HappyCase(t *testing.T) {
 		mockRep.AssertExpectations(t)
 	})
 
-	svc := New(mockRep, new(GoNanoIDGenerator))
+	svc := New(mockRep, new(GoNanoIDGenerator), "https://choto.com")
 
 	originalUrl, err := svc.GetOriginalUrl(context.Background(), "FLeq19fl")
 	require.NoError(t, err)
@@ -147,7 +147,7 @@ func TestCreateShortUrl_HappyCase(t *testing.T) {
 		mockRep.AssertExpectations(t)
 	})
 
-	svc := New(mockRep, new(GoNanoIDGenerator))
+	svc := New(mockRep, new(GoNanoIDGenerator), "https://choto.com")
 
 	shortedUrl, err := svc.CreateShortUrl(context.Background(), testUrl)
 	require.NoError(t, err)

@@ -24,12 +24,14 @@ type GoNanoIDGenerator struct{}
 type UrlShortenerService struct {
 	repo      URLRepository
 	generator Generator
+	baseURL   string
 }
 
-func New(repo URLRepository, generator Generator) *UrlShortenerService {
+func New(repo URLRepository, generator Generator, baseURL string) *UrlShortenerService {
 	return &UrlShortenerService{
 		repo:      repo,
 		generator: generator,
+		baseURL:   baseURL,
 	}
 }
 
@@ -38,10 +40,6 @@ var (
 )
 
 // TODO: Убрать в .env
-const (
-	domain = "localhost"
-	port   = "8080"
-)
 
 const (
 	alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -106,5 +104,5 @@ func (n *GoNanoIDGenerator) Generate(alphabet string, size int) (string, error) 
 }
 
 func (s *UrlShortenerService) buildShortedUrl(shorCode string) string {
-	return fmt.Sprintf("http://%s:%s/%s", domain, port, shorCode) // Example: http://localhost:8080/EiXk21Dz
+	return fmt.Sprintf("%s/%s", s.baseURL, shorCode) // Example: http://localhost:8080/EiXk21Dz
 }
