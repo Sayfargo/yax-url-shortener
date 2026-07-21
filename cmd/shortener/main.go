@@ -11,6 +11,8 @@ import (
 
 func main() {
 
+	// sprint 1 finish
+
 	sigCtx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
