@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	config_server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
 )
 
 type HTTPServer struct {
@@ -14,10 +16,10 @@ type HTTPServer struct {
 }
 
 // Добавить конфигурацию для более глубокой настройки http сервера
-func New(handler http.Handler) *HTTPServer {
+func New(handler http.Handler, cfg *config_server.Config) *HTTPServer {
 	return &HTTPServer{
 		server: &http.Server{
-			Addr:    ":8080",
+			Addr:    cfg.Addr,
 			Handler: handler,
 		},
 	}
