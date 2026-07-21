@@ -3,6 +3,7 @@ package core_app
 import (
 	"context"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/config"
 	core_server "github.com/Sayfargo/yax-url-shortener/internal/core/server"
 	core_storage "github.com/Sayfargo/yax-url-shortener/internal/core/storage"
 	"github.com/Sayfargo/yax-url-shortener/internal/handler"
@@ -28,15 +29,17 @@ func New() *App {
 			Tests
 	*/
 
+	cfg := config.Load()
+
 	rootRouter := chi.NewRouter()
 
 	cache := core_storage.Init()
 	repo := repository.New(cache)
-	svc := service.New(repo, new(service.GoNanoIDGenerator))
+	svc := service.New(repo, new(service.GoNanoIDGenerator), cfg.Server.BaseURL)
 	handler := handler.New(svc)
 	handler.Register(rootRouter)
 
-	httpServer := core_server.New(rootRouter)
+	httpServer := core_server.New(rootRouter, cfg.Server)
 
 	return &App{
 		Server: httpServer,
