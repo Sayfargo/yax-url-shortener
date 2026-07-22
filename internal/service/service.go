@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/repository"
+	"github.com/go-playground/validator/v10"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
@@ -22,21 +23,33 @@ type Generator interface {
 type GoNanoIDGenerator struct{}
 
 type UrlShortenerService struct {
-	repo      URLRepository
+	repo URLRepository
+
 	generator Generator
-	baseURL   string
+	validate  *validator.Validate
+
+	// Base URL для генерации шорт юрла
+	baseURL string
 }
 
-func New(repo URLRepository, generator Generator, baseURL string) *UrlShortenerService {
+func New(
+	repo URLRepository,
+	generator Generator,
+	baseURL string,
+	validate *validator.Validate,
+) *UrlShortenerService {
 	return &UrlShortenerService{
 		repo:      repo,
 		generator: generator,
+		validate:  validate,
 		baseURL:   baseURL,
 	}
 }
 
 var (
-	ErrUrlDoesNotExists = errors.New("requested URL code does not exists")
+	ErrUrlDoesNotExists                = errors.New("requested URL code does not exists")
+	ErrShortCodeCollisionLimitExceeded = errors.New("failed to generate short code after all attempts")
+	ErrIncorrectUrl                    = errors.New("incorrect url")
 )
 
 // TODO: Убрать в .env
@@ -56,7 +69,7 @@ func (s *UrlShortenerService) GetOriginalUrl(ctx context.Context, shortCode stri
 		if errors.Is(err, repository.ErrNotExists) {
 			return "", ErrUrlDoesNotExists
 		}
-		return "", fmt.Errorf("repository get err: %w", err)
+		return "", fmt.Errorf("Repository.Get err: %w", err)
 	}
 
 	return originalUrl, nil
@@ -68,35 +81,30 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 		return "", ctx.Err()
 	}
 
-	var (
-		shortCode string
-		err       error
-	)
+	if err := s.validate.Var(url, "http_url"); err != nil {
+		return "", ErrIncorrectUrl
+	}
 
 	for attempt := 0; attempt < 3; attempt++ {
 
-		shortCode, err = s.generator.Generate(alphabet, size)
+		shortCode, err := s.generator.Generate(alphabet, size)
 		if err != nil {
-			return "", fmt.Errorf("gonanoid generate err: %w", err)
+			return "", fmt.Errorf("Generator.Generate err: %w", err)
 		}
 
-		if err := s.repo.Create(ctx, url, shortCode); err != nil {
-			/*
-				TODO:
-					Если реально будет конфликт с шорт кодом, попробуем ретрайнуть
-					Здес будет обработка ошибки от БД, что шорт код уже существует
-					<ErrAlreadyExists>
-			*/
-			continue
-		} else {
-			break
+		err = s.repo.Create(ctx, url, shortCode)
+		if err == nil {
+			return s.buildShortedUrl(shortCode), nil
 		}
+
+		if errors.Is(err, repository.ErrAlreadyExists) {
+			continue
+		}
+
+		return "", fmt.Errorf("Repository.Create err: %w", err)
 	}
 
-	shortedUrl := s.buildShortedUrl(shortCode)
-
-	return shortedUrl, nil
-
+	return "", ErrShortCodeCollisionLimitExceeded
 }
 
 func (n *GoNanoIDGenerator) Generate(alphabet string, size int) (string, error) {
