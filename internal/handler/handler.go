@@ -73,7 +73,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	shortedUrl, err := h.service.CreateShortUrl(r.Context(), url)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			fmt.Printf("connection refused by client: %v", err)
+			fmt.Printf("request canceled: %v", err)
 		} else if errors.Is(err, service.ErrShortCodeCollisionLimitExceeded) {
 			http.Error(w, "Failed to process request, please try again", http.StatusInternalServerError)
 		} else if errors.Is(err, service.ErrIncorrectUrl) {
