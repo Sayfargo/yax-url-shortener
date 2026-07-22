@@ -10,6 +10,7 @@ import (
 	"github.com/Sayfargo/yax-url-shortener/internal/repository"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
 )
 
 type App struct {
@@ -30,12 +31,13 @@ func New() *App {
 	*/
 
 	cfg := config.Load()
-
 	rootRouter := chi.NewRouter()
+	validate := validator.New() // потом можно свои правила добавить
 
 	cache := core_storage.Init()
 	repo := repository.New(cache)
-	svc := service.New(repo, new(service.GoNanoIDGenerator), cfg.Server.BaseURL)
+
+	svc := service.New(repo, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validate)
 	handler := handler.New(svc)
 	handler.Register(rootRouter)
 
