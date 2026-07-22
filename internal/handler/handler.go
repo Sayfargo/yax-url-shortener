@@ -3,13 +3,12 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-playground/validator/v10"
 )
 
 /*
@@ -63,8 +62,6 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
-	validate := validator.New()
-
 	data, err := io.ReadAll(io.LimitReader(r.Body, 1024*1024))
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusInternalServerError)
@@ -72,28 +69,22 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	url := string(data)
-	url = strings.TrimSpace(url)
-	if url == "" {
-		http.Error(w, "Empty request body", http.StatusBadRequest)
-		return
-	}
-
-	if err := validate.Var(url, "http_url"); err != nil {
-		http.Error(w, "Incorrect URL", http.StatusBadRequest)
-		return
-	}
 
 	shortedUrl, err := h.service.CreateShortUrl(r.Context(), url)
 	if err != nil {
-		/*
-			TODO:
-				Как только появится БД, нужно будет обрабатывать здесь ошибки.
-				Пока что обрабатывать особо нечего
-		*/
+		if errors.Is(err, context.Canceled) {
+			fmt.Printf("connection refused by client: %v", err)
+		} else if errors.Is(err, service.ErrShortCodeCollisionLimitExceeded) {
+			http.Error(w, "Failed to process request, please try again", http.StatusInternalServerError)
+		} else if errors.Is(err, service.ErrIncorrectUrl) {
+			http.Error(w, "Incorrect URL", http.StatusBadRequest)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(shortedUrl))
-
 }
