@@ -94,16 +94,20 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 
 		err = s.repo.Create(ctx, url, shortCode)
 		if err == nil {
+			// Успешно положили в БД юрл и вернули юзеру короткую ссылку
 			return s.buildShortedUrl(shortCode), nil
 		}
 
+		// Если ошибка и она означает конфликт, пробуем ретрай
 		if errors.Is(err, repository.ErrAlreadyExists) {
 			continue
 		}
 
+		// Если ошибка и она не означает конфликт или что-то другое, обарачиваем и возварщаем в handler
 		return "", fmt.Errorf("Repository.Create err: %w", err)
 	}
 
+	// На очень невероятный кейс если на каждую попытку пришёлся конфликт
 	return "", ErrShortCodeCollisionLimitExceeded
 }
 
