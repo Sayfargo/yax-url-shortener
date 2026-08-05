@@ -2,6 +2,7 @@ package config
 
 import (
 	"flag"
+	"fmt"
 
 	config_server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
 )
@@ -10,11 +11,21 @@ type Config struct {
 	Server *config_server.Config
 }
 
-func Load() *Config {
+func Load(args []string) *Config {
 
-	serverConfig := config_server.Load()
+	// Используем отдельный flagset чтобы не конфликтовать с глобальным
+	// Плюс удобно для unit тестов
+	fs := flag.NewFlagSet("config", flag.ContinueOnError)
 
-	flag.Parse()
+	serverConfig := config_server.RegisterFlags(fs)
+
+	// Парсим флаги. Если ошибка - обрабатываем и сможем продолжить работу приложения
+	if err := fs.Parse(args); err != nil {
+		fmt.Printf("Failed to parse flags: %v\n", err) // TODO: Добавить логирование
+	}
+
+	// Если переменные окружения заданы, то они перезапишут флаги
+	serverConfig.ParseEnv()
 
 	return &Config{
 		Server: serverConfig,
