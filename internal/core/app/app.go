@@ -2,6 +2,7 @@ package core_app
 
 import (
 	"context"
+	"os"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
 	core_server "github.com/Sayfargo/yax-url-shortener/internal/core/server"
@@ -30,7 +31,7 @@ func New() *App {
 			Tests
 	*/
 
-	cfg := config.Load()
+	cfg := config.Load(os.Args[1:])
 	rootRouter := chi.NewRouter()
 	validate := validator.New() // потом можно свои правила добавить
 
