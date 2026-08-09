@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -35,6 +36,7 @@ func New(service UrlShortener) *Handler {
 
 func (h *Handler) Register(r chi.Router) {
 	r.Post("/", h.Create)
+	r.Post("/api/shorten", h.Shorten)
 	r.Get("/{id}", h.Redirect)
 }
 
@@ -58,6 +60,43 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 
 	http.Redirect(w, r, originalUrl, http.StatusTemporaryRedirect)
 
+}
+
+func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
+	var (
+		request  ShortUrlRequest
+		response ShortUrlResponse
+	)
+
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1024*1024)).Decode(&request); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	shortedUrl, err := h.service.CreateShortUrl(r.Context(), request.URL)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			fmt.Printf("request canceled: %v", err)
+		} else if errors.Is(err, service.ErrShortCodeCollisionLimitExceeded) {
+			http.Error(w, "Failed to process request, please try again", http.StatusInternalServerError)
+		} else if errors.Is(err, service.ErrIncorrectUrl) {
+			http.Error(w, "Incorrect URL", http.StatusBadRequest)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	response.Result = shortedUrl
+
+	body, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	w.Write(body)
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
