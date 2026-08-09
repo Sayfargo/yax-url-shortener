@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -38,7 +40,7 @@ func TestCreate_ErrorResponses(t *testing.T) {
 				mockSvc.AssertExpectations(t)
 			})
 
-			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("bred..k"))
+			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader("bred..k"))
 
 			handler := New(mockSvc)
 			rw := httptest.NewRecorder()
@@ -186,4 +188,90 @@ func TestCreate_Success(t *testing.T) {
 	assert.Equal(t, header, response.Header.Get("Content-Type"))
 	assert.Equal(t, expected, string(body))
 
+}
+
+func TestShorten_ErrorResponses(t *testing.T) {
+	testcases := []struct {
+		name         string
+		expectedCode int
+		serviceError error
+	}{
+		{name: "Collision limit exceeded", expectedCode: http.StatusInternalServerError, serviceError: service.ErrShortCodeCollisionLimitExceeded},
+		{name: "Incorrect URL", expectedCode: http.StatusBadRequest, serviceError: service.ErrIncorrectUrl},
+		{name: "Unexpected error", expectedCode: http.StatusInternalServerError, serviceError: errors.New("unexpected error")},
+	}
+
+	for _, test := range testcases {
+		t.Run(test.name, func(t *testing.T) {
+			mockSvc := new(handler_mock.MockURLService)
+			mockSvc.On("CreateShortUrl", mock.Anything, "bred..k").Return("", test.serviceError)
+
+			t.Cleanup(func() {
+				mockSvc.AssertExpectations(t)
+			})
+
+			request := ShortUrlRequest{
+				URL: "bred..k",
+			}
+
+			data, err := json.Marshal(request)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewReader(data))
+
+			handler := New(mockSvc)
+			rw := httptest.NewRecorder()
+			handler.Shorten(rw, req)
+
+			response := rw.Result()
+			defer response.Body.Close()
+
+			assert.Equal(t, test.expectedCode, response.StatusCode)
+		})
+	}
+}
+
+func TestShorten_CreateShortUrl(t *testing.T) {
+	var (
+		method       = http.MethodPost
+		target       = "/api/shorten"
+		header       = "application/json"
+		expected     = "https://anything.com/Dkjf789E"
+		expectedJSON = `{"result":"https://anything.com/Dkjf789E"}`
+		url          = "https://google.com"
+	)
+
+	mockSvc := new(handler_mock.MockURLService)
+	mockSvc.On("CreateShortUrl", mock.Anything, url).Return(expected, nil)
+
+	t.Cleanup(func() {
+		mockSvc.AssertExpectations(t)
+	})
+
+	request := ShortUrlRequest{
+		URL: url,
+	}
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc)
+	rw := httptest.NewRecorder()
+	handler.Shorten(rw, userRequest)
+
+	response := rw.Result()
+	defer response.Body.Close()
+	assert.Equal(t, http.StatusCreated, response.StatusCode)
+
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, body)
+	assert.Equal(t, header, response.Header.Get("Content-Type"))
+	assert.Equal(t, expectedJSON, string(body))
 }
