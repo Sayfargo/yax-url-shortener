@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
+	config_slogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
 	core_server "github.com/Sayfargo/yax-url-shortener/internal/core/server"
 	core_slogger "github.com/Sayfargo/yax-url-shortener/internal/core/slogger"
 	core_storage "github.com/Sayfargo/yax-url-shortener/internal/core/storage"
@@ -36,7 +37,10 @@ func New() *App {
 	cfg := config.Load(os.Args[1:])
 	rootRouter := chi.NewRouter()
 	// Пока slogger временно без env
-	slog := core_slogger.MustNew("./log", "INFO", "INFO")
+	slog, _ := core_slogger.MustNew(config_slogger.Config{
+		Directory: "./log",
+		Stdout:    config_slogger.StdoutConfig{Enabled: true, Format: config_slogger.FormatText, Writer: os.Stdout},
+	})
 	// Оборачиваем в Logger middleware главный мультиплексор
 	rootRouter.Use(core_transport_http_middleware.Logging(slog))
 	validate := validator.New() // потом можно свои правила добавить
