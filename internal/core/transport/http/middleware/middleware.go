@@ -3,8 +3,10 @@ package core_transport_http_middleware
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
+	core_transport_http_request "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/request"
 	core_transport_http_reponse "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/response"
 )
 
@@ -34,6 +36,44 @@ func Logging(log Logger) Middleware {
 				slog.Duration("latency", duration),
 				slog.Int("size", rw.GetBodySize()),
 			)
+		})
+	}
+}
+
+func GzipCompress() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+			originalWriter := w
+
+			acceptsGzip := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
+
+			if acceptsGzip {
+				gzipWriter := core_transport_http_reponse.NewGzipWriter(w)
+
+				originalWriter = gzipWriter
+
+				defer gzipWriter.Close()
+			}
+
+			sendsGzip := strings.Contains(r.Header.Get("Content-Encoding"), "gzip")
+
+			if sendsGzip {
+				gzipReader, err := core_transport_http_request.NewGzipReader(r.Body)
+				if err != nil {
+					http.Error(
+						w,
+						"invalid gzip body",
+						http.StatusBadRequest,
+					)
+					return
+				}
+
+				r.Body = gzipReader
+				defer gzipReader.Close()
+			}
+
+			next.ServeHTTP(originalWriter, r)
 		})
 	}
 }

@@ -41,8 +41,9 @@ func New() *App {
 		Directory: "./log",
 		Stdout:    config_slogger.StdoutConfig{Enabled: true, Format: config_slogger.FormatText, Writer: os.Stdout},
 	})
-	// Оборачиваем в Logger middleware главный мультиплексор
+
 	rootRouter.Use(core_transport_http_middleware.Logging(slog))
+	rootRouter.Use(core_transport_http_middleware.GzipCompress())
 	validate := validator.New() // потом можно свои правила добавить
 
 	cache := core_storage.Init()
