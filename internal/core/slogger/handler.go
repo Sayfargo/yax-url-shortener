@@ -55,7 +55,7 @@ func newStdoutHandler(cfg config_slogger.StdoutConfig) slog.Handler {
 
 // TODO: На потом для удобства извлечения request id из контекста. Пока в коде не используется
 
-func newContextHandler(handler slog.Handler) slog.Handler {
+func NewContextHandler(handler slog.Handler) slog.Handler {
 	return &ContextHandler{
 		Handler: handler,
 	}
@@ -71,7 +71,7 @@ func (h *ContextHandler) Handle(ctx context.Context, record slog.Record) error {
 	return h.Handler.Handle(ctx, record)
 }
 
-func (h ContextHandler) WithGroup(
+func (h *ContextHandler) WithGroup(
 	name string,
 ) slog.Handler {
 	return &ContextHandler{
@@ -79,7 +79,7 @@ func (h ContextHandler) WithGroup(
 	}
 }
 
-func (h ContextHandler) WithAttrs(
+func (h *ContextHandler) WithAttrs(
 	attrs []slog.Attr,
 ) slog.Handler {
 
