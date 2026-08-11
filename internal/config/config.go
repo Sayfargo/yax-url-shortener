@@ -29,6 +29,7 @@ func Load(args []string) *Config {
 
 	// Если переменные окружения заданы, то они перезапишут флаги
 	serverConfig.ParseEnv()
+	fileStorageConfig.ParseEnv()
 
 	return &Config{
 		Server:      serverConfig,
