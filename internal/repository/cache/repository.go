@@ -1,20 +1,20 @@
-package repository
+package repository_cache
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	core_storage "github.com/Sayfargo/yax-url-shortener/internal/core/storage"
+	core_storage_cache "github.com/Sayfargo/yax-url-shortener/internal/core/storage/cache"
 )
 
 // temporary repository
-type URLRepository struct {
-	cache *core_storage.Cache
+type CacheRepository struct {
+	cache *core_storage_cache.Cache
 }
 
-func New(cache *core_storage.Cache) *URLRepository {
-	return &URLRepository{
+func New(cache *core_storage_cache.Cache) *CacheRepository {
+	return &CacheRepository{
 		cache: cache,
 	}
 }
@@ -24,7 +24,7 @@ var (
 	ErrAlreadyExists = errors.New("row already exists")
 )
 
-func (r *URLRepository) Get(ctx context.Context, shortCode string) (string, error) {
+func (r *CacheRepository) Get(ctx context.Context, shortCode string) (string, error) {
 
 	if ctx.Err() != nil {
 		return "", ctx.Err()
@@ -32,7 +32,7 @@ func (r *URLRepository) Get(ctx context.Context, shortCode string) (string, erro
 
 	url, err := r.cache.Get(shortCode)
 	if err != nil {
-		if errors.Is(err, core_storage.ErrNotFound) {
+		if errors.Is(err, core_storage_cache.ErrNotFound) {
 			return "", ErrNotExists
 		}
 		return "", fmt.Errorf("Cache storage Get err: %w", err)
@@ -41,7 +41,7 @@ func (r *URLRepository) Get(ctx context.Context, shortCode string) (string, erro
 	return url, nil
 }
 
-func (r *URLRepository) Create(ctx context.Context, url, shortCode string) error {
+func (r *CacheRepository) Create(ctx context.Context, url, shortCode string) error {
 
 	if ctx.Err() != nil {
 		return ctx.Err()

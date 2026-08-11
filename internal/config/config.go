@@ -5,10 +5,12 @@ import (
 	"fmt"
 
 	config_server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
+	config_storage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
 )
 
 type Config struct {
-	Server *config_server.Config
+	Server      *config_server.Config
+	FileStorage *config_storage.Config
 }
 
 func Load(args []string) *Config {
@@ -18,6 +20,7 @@ func Load(args []string) *Config {
 	fs := flag.NewFlagSet("config", flag.ContinueOnError)
 
 	serverConfig := config_server.RegisterFlags(fs)
+	fileStorageConfig := config_storage.RegisterFlags(fs)
 
 	// Парсим флаги. Если ошибка - обрабатываем и сможем продолжить работу приложения
 	if err := fs.Parse(args); err != nil {
@@ -28,7 +31,8 @@ func Load(args []string) *Config {
 	serverConfig.ParseEnv()
 
 	return &Config{
-		Server: serverConfig,
+		Server:      serverConfig,
+		FileStorage: fileStorageConfig,
 	}
 
 }
