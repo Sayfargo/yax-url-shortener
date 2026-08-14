@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// Если нет переменной окружения, но есть аргумент командной строки (флаг), то используется он.
 func TestConfigLoad_WithFlags(t *testing.T) {
 
 	expectedAddr := "localhost:9090"
@@ -22,7 +22,8 @@ func TestConfigLoad_WithFlags(t *testing.T) {
 		"-b", expectedBaseURL,
 		"-f", expectedFileStoragePath,
 	}
-	config := Load(args)
+	config, err := Load(args)
+	require.NoError(t, err)
 
 	assert.Equal(t, expectedAddr, config.Server.Addr)
 	assert.Equal(t, expectedBaseURL, config.Server.BaseURL)
@@ -30,7 +31,6 @@ func TestConfigLoad_WithFlags(t *testing.T) {
 
 }
 
-// Если указана переменная окружения, то используется она.
 func TestConfigLoad_WithEnv(t *testing.T) {
 
 	expectedAddr := "localhost:9090"
@@ -42,7 +42,8 @@ func TestConfigLoad_WithEnv(t *testing.T) {
 	t.Setenv("FILE_STORAGE_PATH", expectedFileStoragePath)
 
 	args := []string{}
-	config := Load(args)
+	config, err := Load(args)
+	require.NoError(t, err)
 
 	assert.Equal(t, expectedAddr, config.Server.Addr)
 	assert.Equal(t, expectedBaseURL, config.Server.BaseURL)
@@ -50,16 +51,19 @@ func TestConfigLoad_WithEnv(t *testing.T) {
 
 }
 
-// Если нет ни переменной окружения, ни флага, то используется значение по умолчанию.
-// Тест может упасть если поменяются значения по умолчанию в коде
 func TestConfigLoad_WithDefaultParams(t *testing.T) {
 	expectedAddr := "localhost:8080"
 	expectedBaseURL := "http://localhost:8080"
 	expectedBaseFileStoragePath := "./urls.json"
 
+	t.Setenv("SERVER_ADDRESS", "")
+	t.Setenv("BASIC_URL", "")
+	t.Setenv("FILE_STORAGE_PATH", "")
+
 	args := []string{}
 
-	config := Load(args)
+	config, err := Load(args)
+	require.NoError(t, err)
 
 	assert.Equal(t, expectedAddr, config.Server.Addr)
 	assert.Equal(t, expectedBaseURL, config.Server.BaseURL)
