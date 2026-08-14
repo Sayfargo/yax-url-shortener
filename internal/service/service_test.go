@@ -6,13 +6,20 @@ import (
 
 	"net/url"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/model"
 	repository_cache "github.com/Sayfargo/yax-url-shortener/internal/repository/cache"
-	service_mock "github.com/Sayfargo/yax-url-shortener/internal/service/mock"
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+type NopLogger struct{}
+
+func (NopLogger) Debug(msg string, args ...any) {}
+func (NopLogger) Info(msg string, args ...any)  {}
+func (NopLogger) Warn(msg string, args ...any)  {}
+func (NopLogger) Error(msg string, args ...any) {}
 
 func TestCreateShortUrl_IncorrectUrl(t *testing.T) {
 	testcases := []struct {
@@ -28,13 +35,14 @@ func TestCreateShortUrl_IncorrectUrl(t *testing.T) {
 		{name: "Incorrect URL #5", url: "https://goog le", expectedErr: ErrIncorrectUrl},
 	}
 
-	mockRepo := new(service_mock.MockCacheRepository)
-	mockRepo.On("Create", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	baseURL := "https://choto.com"
+	mockRepo := NewMockRepository(t)
+	mockGen := NewMockGenerator(t)
+	mockLog := new(NopLogger)
+	baseURL := "https://base.com"
 
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
-			svc := New(mockRepo, new(service_mock.MockFileRepository), new(GoNanoIDGenerator), baseURL, validator.New())
+			svc := New(mockRepo, mockGen, baseURL, validator.New(), mockLog)
 
 			result, err := svc.CreateShortUrl(context.Background(), test.url)
 			assert.Empty(t, result)
@@ -44,14 +52,12 @@ func TestCreateShortUrl_IncorrectUrl(t *testing.T) {
 }
 
 func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
-	mockRepo := new(service_mock.MockCacheRepository)
-	mockRepo.On("Get", mock.Anything, mock.Anything).Return("", repository_cache.ErrNotExists)
+	mockRepo := NewMockRepository(t)
+	mockGen := NewMockGenerator(t)
+	mockLog := new(NopLogger)
+	mockRepo.EXPECT().Get(mock.Anything, mock.Anything).Return(mock.Anything, repository_cache.ErrNotExists)
 
-	t.Cleanup(func() {
-		mockRepo.AssertExpectations(t)
-	})
-
-	svc := New(mockRepo, new(service_mock.MockFileRepository), new(GoNanoIDGenerator), "https://choto.com", validator.New())
+	svc := New(mockRepo, mockGen, "https://base.com", validator.New(), mockLog)
 
 	result, err := svc.GetOriginalUrl(context.Background(), "fKM29FzE")
 	assert.Empty(t, result)
@@ -60,28 +66,41 @@ func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
 
 func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 
-	mockRepo := new(service_mock.MockCacheRepository)
-	mockFileRepo := new(service_mock.MockFileRepository)
-	mockGenerator := new(service_mock.MockGoNanoIDGenerator)
+	mockRepo := NewMockRepository(t)
+	mockGenerator := NewMockGenerator(t)
+	mockLog := new(NopLogger)
 
-	mockGenerator.On("Generate", alphabet, size).Return("ZEFIRMOY", nil).Once()
-	mockGenerator.On("Generate", alphabet, size).Return("BULOCHKA", nil).Once()
+	mockGenerator.EXPECT().Generate(alphabet, size).Return("ZEFIRMOY", nil).Once()
+	mockGenerator.EXPECT().Generate(alphabet, size).Return("BULOCHKA", nil).Once()
 
-	mockRepo.On("Create", mock.Anything, "https://random.com", "ZEFIRMOY").Return(repository_cache.ErrAlreadyExists).Once()
-	mockRepo.On("Create", mock.Anything, "https://random.com", "BULOCHKA").Return(nil).Once()
-	mockFileRepo.On("Save", mock.Anything, mock.Anything).Return(nil)
+	expectedUrl := "https://base.com/BULOCHKA"
 
-	t.Cleanup(func() {
-		mockGenerator.AssertExpectations(t)
-		mockRepo.AssertExpectations(t)
-	})
+	mockRepo.EXPECT().
+		Create(
+			mock.Anything,
+			mock.MatchedBy(func(u model.ShortenedUrl) bool {
+				return u.ShortCode == "ZEFIRMOY" &&
+					u.OriginalUrl == "https://original.url"
+			}),
+		).
+		Return(repository_cache.ErrAlreadyExists).
+		Once()
+	mockRepo.EXPECT().
+		Create(
+			mock.Anything,
+			mock.MatchedBy(func(u model.ShortenedUrl) bool {
+				return u.ShortCode == "BULOCHKA" &&
+					u.OriginalUrl == "https://original.url"
+			}),
+		).
+		Return(nil).
+		Once()
 
-	svc := New(mockRepo, mockFileRepo, mockGenerator, "https://choto.com", validator.New())
+	svc := New(mockRepo, mockGenerator, "https://base.com", validator.New(), mockLog)
 
-	expectedUrl := svc.buildShortedUrl("BULOCHKA")
 	require.NotEmpty(t, expectedUrl)
 
-	result, err := svc.CreateShortUrl(context.Background(), "https://random.com")
+	result, err := svc.CreateShortUrl(context.Background(), "https://original.url")
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedUrl, result)
@@ -92,14 +111,11 @@ func TestGetOriginalUrl_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	mockRepo := new(service_mock.MockCacheRepository)
-	mockRepo.On("Get", mock.Anything, mock.Anything).Return("", nil)
+	mockRepo := NewMockRepository(t)
+	mockGen := NewMockGenerator(t)
+	mockLog := new(NopLogger)
 
-	t.Cleanup(func() {
-		mockRepo.AssertNotCalled(t, "Get")
-	})
-
-	svc := New(mockRepo, new(service_mock.MockFileRepository), new(GoNanoIDGenerator), "https://choto.com", validator.New())
+	svc := New(mockRepo, mockGen, "https://base.com", validator.New(), mockLog)
 
 	result, err := svc.GetOriginalUrl(ctx, "shortCode")
 	assert.Empty(t, result)
@@ -110,14 +126,15 @@ func TestCreateShortUrl_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	mockRepo := new(service_mock.MockCacheRepository)
-	mockRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
+	mockRepo := NewMockRepository(t)
+	mockGen := NewMockGenerator(t)
+	mockLog := new(NopLogger)
 
 	t.Cleanup(func() {
 		mockRepo.AssertNotCalled(t, "Create")
 	})
 
-	svc := New(mockRepo, new(service_mock.MockFileRepository), new(GoNanoIDGenerator), "https://choto.com", validator.New())
+	svc := New(mockRepo, mockGen, "https://base.com", validator.New(), mockLog)
 
 	result, err := svc.CreateShortUrl(ctx, "anything")
 	assert.Empty(t, result)
@@ -127,15 +144,13 @@ func TestCreateShortUrl_ContextCanceled(t *testing.T) {
 func TestGetOriginalUrl_Success(t *testing.T) {
 	// Params
 	expectedUrl := "https://google.com"
-	// Repository mock
-	mockRep := new(service_mock.MockCacheRepository)
-	mockRep.On("Get", mock.Anything, mock.Anything).Return(expectedUrl, nil)
 
-	t.Cleanup(func() {
-		mockRep.AssertExpectations(t)
-	})
+	mockRep := NewMockRepository(t)
+	mockGen := NewMockGenerator(t)
+	mockLog := new(NopLogger)
+	mockRep.EXPECT().Get(mock.Anything, mock.Anything).Return(expectedUrl, nil)
 
-	svc := New(mockRep, new(service_mock.MockFileRepository), new(GoNanoIDGenerator), "https://choto.com", validator.New())
+	svc := New(mockRep, mockGen, "https://base.com", validator.New(), mockLog)
 
 	originalUrl, err := svc.GetOriginalUrl(context.Background(), "FLeq19fl")
 	require.NoError(t, err)
@@ -148,17 +163,14 @@ func TestGetOriginalUrl_Success(t *testing.T) {
 func TestCreateShortUrl_Success(t *testing.T) {
 	// Params
 	testUrl := "https://google.com"
-	// Repository mock
-	mockRep := new(service_mock.MockCacheRepository)
-	mockFileRepo := new(service_mock.MockFileRepository)
-	mockRep.On("Create", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	mockFileRepo.On("Save", mock.Anything, mock.Anything).Return(nil)
 
-	t.Cleanup(func() {
-		mockRep.AssertExpectations(t)
-	})
+	mockRep := NewMockRepository(t)
+	mockGen := NewMockGenerator(t)
+	mockLog := new(NopLogger)
+	mockGen.EXPECT().Generate(mock.Anything, mock.Anything).Return(mock.Anything, nil)
+	mockRep.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
 
-	svc := New(mockRep, mockFileRepo, new(GoNanoIDGenerator), "https://choto.com", validator.New())
+	svc := New(mockRep, mockGen, "https://base.com", validator.New(), mockLog)
 
 	shortedUrl, err := svc.CreateShortUrl(context.Background(), testUrl)
 	require.NoError(t, err)
