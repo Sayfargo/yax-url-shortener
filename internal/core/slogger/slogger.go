@@ -69,7 +69,7 @@ func buildHandler(cfg config_slogger.Config) (handler slog.Handler, closer *Clos
 	for _, fileConfig := range cfg.Files {
 		if fileConfig.Enabled {
 
-			file, err := initLogFile(cfg.Directory, fileConfig.Name, fileConfig.Level.String())
+			file, err := setupLogFile(cfg.Directory, fileConfig.Name, fileConfig.Level.String())
 			if err != nil {
 				return nil, nil, err
 			}
@@ -86,7 +86,7 @@ func buildHandler(cfg config_slogger.Config) (handler slog.Handler, closer *Clos
 
 }
 
-func initLogFile(dir, name, level string) (*os.File, error) {
+func setupLogFile(dir, name, level string) (*os.File, error) {
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to make log dir: %w", err)

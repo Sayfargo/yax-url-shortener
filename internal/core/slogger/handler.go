@@ -1,7 +1,6 @@
 package core_slogger
 
 import (
-	"context"
 	"log/slog"
 	"os"
 
@@ -51,39 +50,4 @@ func newStdoutHandler(cfg config_slogger.StdoutConfig) slog.Handler {
 	return slog.NewTextHandler(writer, &slog.HandlerOptions{
 		Level: cfg.Level,
 	})
-}
-
-// TODO: На потом для удобства извлечения request id из контекста. Пока в коде не используется
-
-func NewContextHandler(handler slog.Handler) slog.Handler {
-	return &ContextHandler{
-		Handler: handler,
-	}
-}
-
-func (h *ContextHandler) Handle(ctx context.Context, record slog.Record) error {
-	requestID, ok := ctx.Value(0).(string)
-
-	if ok {
-		record.AddAttrs(slog.String("Request_ID", requestID))
-	}
-
-	return h.Handler.Handle(ctx, record)
-}
-
-func (h *ContextHandler) WithGroup(
-	name string,
-) slog.Handler {
-	return &ContextHandler{
-		Handler: h.Handler.WithGroup(name),
-	}
-}
-
-func (h *ContextHandler) WithAttrs(
-	attrs []slog.Attr,
-) slog.Handler {
-
-	return &ContextHandler{
-		Handler: h.Handler.WithAttrs(attrs),
-	}
 }
