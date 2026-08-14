@@ -2,13 +2,14 @@ package config_server
 
 import (
 	"flag"
+	"fmt"
 
-	"github.com/caarlos0/env"
+	"github.com/caarlos0/env/v11"
 )
 
 type Config struct {
 	Addr    string `env:"SERVER_ADDRESS"`
-	BaseURL string `env:"BASIC_URL"`
+	BaseURL string `env:"BASE_URL"`
 }
 
 func RegisterFlags(fs *flag.FlagSet) *Config {
@@ -33,8 +34,9 @@ func RegisterFlags(fs *flag.FlagSet) *Config {
 
 }
 
-func (c *Config) ParseEnv() {
+func (c *Config) ParseEnv() error {
 	if err := env.Parse(c); err != nil {
-		panic(err) // TODO: Обработать ошибку более корректно + логирование
+		return fmt.Errorf("failed to parse env: %w", err)
 	}
+	return nil
 }
