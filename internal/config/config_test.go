@@ -14,7 +14,7 @@ func TestConfigLoad_WithFlags(t *testing.T) {
 	expectedFileStoragePath := "./urls.json"
 
 	t.Setenv("SERVER_ADDRESS", "")
-	t.Setenv("BASIC_URL", "")
+	t.Setenv("BASE_URL", "")
 	t.Setenv("FILE_STORAGE_PATH", "")
 
 	args := []string{
@@ -38,7 +38,7 @@ func TestConfigLoad_WithEnv(t *testing.T) {
 	expectedFileStoragePath := "./urls.json"
 
 	t.Setenv("SERVER_ADDRESS", expectedAddr)
-	t.Setenv("BASIC_URL", expectedBaseURL)
+	t.Setenv("BASE_URL", expectedBaseURL)
 	t.Setenv("FILE_STORAGE_PATH", expectedFileStoragePath)
 
 	args := []string{}
@@ -57,7 +57,7 @@ func TestConfigLoad_WithDefaultParams(t *testing.T) {
 	expectedBaseFileStoragePath := "./urls.json"
 
 	t.Setenv("SERVER_ADDRESS", "")
-	t.Setenv("BASIC_URL", "")
+	t.Setenv("BASE_URL", "")
 	t.Setenv("FILE_STORAGE_PATH", "")
 
 	args := []string{}
