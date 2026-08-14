@@ -12,28 +12,30 @@ import (
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-type CacheRepository interface {
-	Create(ctx context.Context, url, shortCode string) error
+type Repository interface {
+	Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error
 	Get(ctx context.Context, shortCode string) (string, error)
-}
-
-type FileRepository interface {
-	Save(ctx context.Context, shortenedUrl model.ShortenedUrl) error
 }
 
 type Generator interface {
 	Generate(alphabet string, size int) (string, error)
 }
 
+type Logger interface {
+	Info(msg string, args ...any)
+	Debug(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Error(msg string, args ...any)
+}
+
 type GoNanoIDGenerator struct{}
 
 type UrlShortenerService struct {
 	// Хранит в IMC
-	cacheRepo CacheRepository
-	// Хранит в файле
-	fileRepo FileRepository
+	cacheRepo Repository
 
 	generator Generator
+	log       Logger
 	validate  *validator.Validate
 
 	// Base URL для генерации шорт юрла
@@ -41,18 +43,18 @@ type UrlShortenerService struct {
 }
 
 func New(
-	cacheRepo CacheRepository,
-	fileRepo FileRepository,
+	cacheRepo Repository,
 	generator Generator,
 	baseURL string,
 	validate *validator.Validate,
+	log Logger,
 ) *UrlShortenerService {
 	return &UrlShortenerService{
 		cacheRepo: cacheRepo,
-		fileRepo:  fileRepo,
 		generator: generator,
 		validate:  validate,
 		baseURL:   baseURL,
+		log:       log,
 	}
 }
 
@@ -60,9 +62,8 @@ var (
 	ErrUrlDoesNotExists                = errors.New("requested URL code does not exists")
 	ErrShortCodeCollisionLimitExceeded = errors.New("failed to generate short code after all attempts")
 	ErrIncorrectUrl                    = errors.New("incorrect url")
+	ErrCorruptedData                   = errors.New("cached data is corrupted or invalid")
 )
-
-// TODO: Убрать в .env
 
 const (
 	alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -78,8 +79,10 @@ func (s *UrlShortenerService) GetOriginalUrl(ctx context.Context, shortCode stri
 	if err != nil {
 		if errors.Is(err, repository_cache.ErrNotExists) {
 			return "", ErrUrlDoesNotExists
+		} else if errors.Is(err, repository_cache.ErrUnexpectedType) {
+			return "", ErrCorruptedData
 		}
-		return "", fmt.Errorf("Repository.Get err: %w", err)
+		return "", fmt.Errorf("repository get err: %w", err)
 	}
 
 	return originalUrl, nil
@@ -96,46 +99,43 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 	}
 
 	for attempt := 0; attempt < 3; attempt++ {
+
 		shortCode, err := s.generator.Generate(alphabet, size)
 		if err != nil {
-			return "", fmt.Errorf("Generator.Generate: %w", err)
+			return "", fmt.Errorf("generator generate: %w", err)
 		}
 
-		err = s.cacheRepo.Create(ctx, url, shortCode)
+		shortenedUrl := model.ShortenedUrl{
+			UUID:        uuid.New().String(),
+			ShortCode:   shortCode,
+			OriginalUrl: url,
+		}
+
+		err = s.cacheRepo.Create(ctx, shortenedUrl)
 
 		switch {
 		case err == nil:
-			if err := s.saveShortenedURL(ctx, url, shortCode); err != nil {
-				return "", fmt.Errorf("FileStorage.Save: %w", err)
-			}
 
 			return s.buildShortedUrl(shortCode), nil
 
 		case errors.Is(err, repository_cache.ErrAlreadyExists):
+
+			s.log.Info(
+				"short code collision occurred, retrying",
+				"url", url,
+				"code", shortCode,
+				"attempt", attempt+1,
+			)
+
 			continue
 
 		default:
-			return "", fmt.Errorf("Repository.Create: %w", err)
+
+			return "", fmt.Errorf("repository create: %w", err)
 		}
 	}
 
 	return "", ErrShortCodeCollisionLimitExceeded
-}
-
-func (s *UrlShortenerService) saveShortenedURL(ctx context.Context, originalUrl, shortCode string) error {
-	uuid, err := uuid.NewUUID()
-	if err != nil {
-		return fmt.Errorf("failed to generate uuid: %w", err)
-	}
-
-	shortenedUrl := model.ShortenedUrl{
-		UUID:        uuid.String(),
-		ShortCode:   shortCode,
-		OriginalUrl: originalUrl,
-	}
-
-	return s.fileRepo.Save(ctx, shortenedUrl)
-
 }
 
 func (n *GoNanoIDGenerator) Generate(alphabet string, size int) (string, error) {
