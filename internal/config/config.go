@@ -13,27 +13,27 @@ type Config struct {
 	FileStorage *config_storage.Config
 }
 
-func Load(args []string) *Config {
+func Load(args []string) (*Config, error) {
 
-	// Используем отдельный flagset чтобы не конфликтовать с глобальным
-	// Плюс удобно для unit тестов
 	fs := flag.NewFlagSet("config", flag.ContinueOnError)
 
 	serverConfig := config_server.RegisterFlags(fs)
 	fileStorageConfig := config_storage.RegisterFlags(fs)
 
-	// Парсим флаги. Если ошибка - обрабатываем и сможем продолжить работу приложения
 	if err := fs.Parse(args); err != nil {
-		fmt.Printf("Failed to parse flags: %v\n", err) // TODO: Добавить логирование
+		return nil, fmt.Errorf("failed to parse flags: %w", err)
 	}
 
-	// Если переменные окружения заданы, то они перезапишут флаги
-	serverConfig.ParseEnv()
-	fileStorageConfig.ParseEnv()
+	if err := serverConfig.ParseEnv(); err != nil {
+		return nil, fmt.Errorf("server config: %w", err)
+	}
+	if err := fileStorageConfig.ParseEnv(); err != nil {
+		return nil, fmt.Errorf("file storage config: %w", err)
+	}
 
 	return &Config{
 		Server:      serverConfig,
 		FileStorage: fileStorageConfig,
-	}
+	}, nil
 
 }
