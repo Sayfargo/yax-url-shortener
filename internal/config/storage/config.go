@@ -2,8 +2,9 @@ package config_storage
 
 import (
 	"flag"
+	"fmt"
 
-	"github.com/caarlos0/env"
+	"github.com/caarlos0/env/v11"
 )
 
 type Config struct {
@@ -25,8 +26,9 @@ func RegisterFlags(fs *flag.FlagSet) *Config {
 
 }
 
-func (c *Config) ParseEnv() {
+func (c *Config) ParseEnv() error {
 	if err := env.Parse(c); err != nil {
-		panic(err) // TODO: Обработать ошибку более корректно + логирование
+		return fmt.Errorf("parse env: %w", err)
 	}
+	return nil
 }

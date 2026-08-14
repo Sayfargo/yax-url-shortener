@@ -5,27 +5,22 @@ import (
 	"sync"
 )
 
-/*
-	TODO: Здесь заменить in-memory на postgres или redis
-*/
-
 var (
-	ErrNotFound = errors.New("Key not found")
+	ErrNotFound = errors.New("key not found")
 )
 
-// temporary storage
 type Cache struct {
-	storage map[string]string
+	storage map[string]any
 	mu      sync.RWMutex
 }
 
 func Init() *Cache {
 	return &Cache{
-		storage: make(map[string]string),
+		storage: make(map[string]any),
 	}
 }
 
-func (c *Cache) Set(key, value string) {
+func (c *Cache) Set(key string, value any) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -34,13 +29,13 @@ func (c *Cache) Set(key, value string) {
 
 }
 
-func (c *Cache) Get(key string) (string, error) {
+func (c *Cache) Get(key string) (any, error) {
 
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	value, ok := c.storage[key]
 	if !ok {
-		return "", ErrNotFound
+		return nil, ErrNotFound
 	}
 
 	return value, nil

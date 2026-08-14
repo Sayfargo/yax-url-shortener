@@ -22,7 +22,7 @@ func TestFileStorage_WriteURL(t *testing.T) {
 		FilePath: tmpFile,
 	}
 
-	fileStorage, err := New(cfg)
+	fileStorage, err := Init(cfg)
 
 	defer func() {
 		err := fileStorage.Close()
