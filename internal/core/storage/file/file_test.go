@@ -15,6 +15,7 @@ import (
 )
 
 func assertURLsEqual(t *testing.T, expected, actual []model.ShortenedUrl) {
+	t.Helper()
 	require.Len(t, actual, len(expected))
 
 	for i := range expected {
@@ -110,6 +111,7 @@ func TestFileStorage_AppendAfterRead(t *testing.T) {
 	assert.Equal(t, len(shortenedUrls), len(results))
 
 	// Проверяем что первые три записи были прочитаны в правильном порядке
+
 	assertURLsEqual(t, shortenedUrls, results)
 
 	newRecord := model.ShortenedUrl{
