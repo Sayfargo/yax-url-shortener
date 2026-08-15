@@ -2,22 +2,38 @@ package config
 
 import (
 	"flag"
+	"fmt"
 
 	config_server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
+	config_storage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
 )
 
 type Config struct {
-	Server *config_server.Config
+	Server      *config_server.Config
+	FileStorage *config_storage.Config
 }
 
-func Load() *Config {
+func Load(args []string) (*Config, error) {
 
-	serverConfig := config_server.Load()
+	fs := flag.NewFlagSet("config", flag.ContinueOnError)
 
-	flag.Parse()
+	serverConfig := config_server.RegisterFlags(fs)
+	fileStorageConfig := config_storage.RegisterFlags(fs)
+
+	if err := fs.Parse(args); err != nil {
+		return nil, fmt.Errorf("failed to parse flags: %w", err)
+	}
+
+	if err := serverConfig.ParseEnv(); err != nil {
+		return nil, fmt.Errorf("server config: %w", err)
+	}
+	if err := fileStorageConfig.ParseEnv(); err != nil {
+		return nil, fmt.Errorf("file storage config: %w", err)
+	}
 
 	return &Config{
-		Server: serverConfig,
-	}
+		Server:      serverConfig,
+		FileStorage: fileStorageConfig,
+	}, nil
 
 }

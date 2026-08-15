@@ -3,8 +3,10 @@ module github.com/Sayfargo/yax-url-shortener
 go 1.26.3
 
 require (
+	github.com/caarlos0/env/v11 v11.4.1
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-playground/validator/v10 v10.30.3
+	github.com/google/uuid v1.6.0
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/stretchr/testify v1.11.1
 )

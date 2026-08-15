@@ -13,15 +13,17 @@ import (
 
 type HTTPServer struct {
 	server *http.Server
+
+	log *slog.Logger
 }
 
-// Добавить конфигурацию для более глубокой настройки http сервера
-func New(handler http.Handler, cfg *config_server.Config) *HTTPServer {
+func New(handler http.Handler, cfg *config_server.Config, log *slog.Logger) *HTTPServer {
 	return &HTTPServer{
 		server: &http.Server{
 			Addr:    cfg.Addr,
 			Handler: handler,
 		},
+		log: log,
 	}
 }
 
@@ -29,13 +31,12 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 
 	chErr := make(chan error, 1)
 
-	l := slog.With(
-		slog.String("Addr", s.server.Addr),
-	)
-
 	go func() {
 
-		l.Info("starting http server")
+		s.log.Info(
+			"starting http server",
+			slog.String("Addr", s.server.Addr),
+		)
 
 		if err := s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			chErr <- err
@@ -46,29 +47,34 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 
 	select {
 	case err := <-chErr:
-		l.Error(
+		s.log.Error(
 			"failed to start server",
 			"err",
 			err,
+			slog.String("Addr", s.server.Addr),
 		)
-		return fmt.Errorf("listen and server: %w", err)
+		return fmt.Errorf("listen and serve: %w", err)
 	case <-ctx.Done():
-		l.Info(
+		s.log.Info(
 			"server starting shutdown",
 		)
 
 		if err := s.shutdown(); err != nil {
-			l.Error(
+			s.log.Error(
 				"failed to shutdown",
 				"err",
 				err,
+				slog.String("Addr", s.server.Addr),
 			)
 			_ = s.server.Close()
-			return fmt.Errorf("shutdown: %w", err)
+			return fmt.Errorf("failed to shutdown: %w", err)
 		}
 	}
 
-	l.Info("server successfully closed")
+	s.log.Info(
+		"server successfully closed",
+		slog.String("Addr", s.server.Addr),
+	)
 
 	return nil
 }

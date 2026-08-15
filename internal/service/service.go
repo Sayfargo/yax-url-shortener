@@ -4,18 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
-	"github.com/Sayfargo/yax-url-shortener/internal/repository"
+	"github.com/Sayfargo/yax-url-shortener/internal/model"
+	repository_cache "github.com/Sayfargo/yax-url-shortener/internal/repository/cache"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-type URLRepository interface {
-	Create(ctx context.Context, url, shortCode string) error
+type Repository interface {
+	Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error
 	Get(ctx context.Context, shortCode string) (string, error)
 }
 
-// Возможно лишнее, стоит подумать
 type Generator interface {
 	Generate(alphabet string, size int) (string, error)
 }
@@ -23,9 +25,11 @@ type Generator interface {
 type GoNanoIDGenerator struct{}
 
 type UrlShortenerService struct {
-	repo URLRepository
+	// Хранит в IMC
+	cacheRepo Repository
 
 	generator Generator
+	log       *slog.Logger
 	validate  *validator.Validate
 
 	// Base URL для генерации шорт юрла
@@ -33,16 +37,18 @@ type UrlShortenerService struct {
 }
 
 func New(
-	repo URLRepository,
+	cacheRepo Repository,
 	generator Generator,
 	baseURL string,
 	validate *validator.Validate,
+	log *slog.Logger,
 ) *UrlShortenerService {
 	return &UrlShortenerService{
-		repo:      repo,
+		cacheRepo: cacheRepo,
 		generator: generator,
 		validate:  validate,
 		baseURL:   baseURL,
+		log:       log,
 	}
 }
 
@@ -50,9 +56,8 @@ var (
 	ErrUrlDoesNotExists                = errors.New("requested URL code does not exists")
 	ErrShortCodeCollisionLimitExceeded = errors.New("failed to generate short code after all attempts")
 	ErrIncorrectUrl                    = errors.New("incorrect url")
+	ErrCorruptedData                   = errors.New("cached data is corrupted or invalid")
 )
-
-// TODO: Убрать в .env
 
 const (
 	alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -64,12 +69,14 @@ func (s *UrlShortenerService) GetOriginalUrl(ctx context.Context, shortCode stri
 		return "", ctx.Err()
 	}
 
-	originalUrl, err := s.repo.Get(ctx, shortCode)
+	originalUrl, err := s.cacheRepo.Get(ctx, shortCode)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotExists) {
+		if errors.Is(err, repository_cache.ErrNotExists) {
 			return "", ErrUrlDoesNotExists
+		} else if errors.Is(err, repository_cache.ErrUnexpectedType) {
+			return "", ErrCorruptedData
 		}
-		return "", fmt.Errorf("Repository.Get err: %w", err)
+		return "", fmt.Errorf("repository get err: %w", err)
 	}
 
 	return originalUrl, nil
@@ -89,25 +96,39 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 
 		shortCode, err := s.generator.Generate(alphabet, size)
 		if err != nil {
-			return "", fmt.Errorf("Generator.Generate err: %w", err)
+			return "", fmt.Errorf("generator generate: %w", err)
 		}
 
-		err = s.repo.Create(ctx, url, shortCode)
-		if err == nil {
-			// Успешно положили в БД юрл и вернули юзеру короткую ссылку
+		shortenedUrl := model.ShortenedUrl{
+			UUID:        uuid.New().String(),
+			ShortCode:   shortCode,
+			OriginalUrl: url,
+		}
+
+		err = s.cacheRepo.Create(ctx, shortenedUrl)
+
+		switch {
+		case err == nil:
+
 			return s.buildShortedUrl(shortCode), nil
-		}
 
-		// Если ошибка и она означает конфликт, пробуем ретрай
-		if errors.Is(err, repository.ErrAlreadyExists) {
+		case errors.Is(err, repository_cache.ErrAlreadyExists):
+
+			s.log.Info(
+				"short code collision occurred, retrying",
+				"url", url,
+				"code", shortCode,
+				"attempt", attempt+1,
+			)
+
 			continue
-		}
 
-		// Если ошибка и она не означает конфликт или что-то другое, обарачиваем и возварщаем в handler
-		return "", fmt.Errorf("Repository.Create err: %w", err)
+		default:
+
+			return "", fmt.Errorf("repository create: %w", err)
+		}
 	}
 
-	// На очень невероятный кейс если на каждую попытку пришёлся конфликт
 	return "", ErrShortCodeCollisionLimitExceeded
 }
 

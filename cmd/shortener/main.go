@@ -2,23 +2,66 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
+	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/config"
+	config_slogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
 	core_app "github.com/Sayfargo/yax-url-shortener/internal/core/app"
+	core_slogger "github.com/Sayfargo/yax-url-shortener/internal/core/slogger"
 )
 
 func main() {
-
-	// sprint 1 finish
-
 	sigCtx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	app := core_app.New()
+	// config
+	cfg, err := config.Load(os.Args[1:])
+	if err != nil {
+		log.Printf("config load: %v\n", err)
+		return
+	}
+
+	// logger config
+	logConfig := config_slogger.Config{
+		Directory: "./log",
+		Stdout: config_slogger.StdoutConfig{
+			Enabled: true,
+			Format:  config_slogger.FormatText,
+			Writer:  os.Stdout,
+		},
+	}
+
+	// initialize logger
+	slog, closer, err := core_slogger.New(logConfig)
+	if err != nil {
+		log.Printf("slogger: %v\n", err)
+		return
+	}
+
+	defer func() {
+		if err := closer.Close(); err != nil {
+			log.Printf("logger close: %v\n", err)
+		}
+	}()
+
+	// application
+	app, err := core_app.New(cfg, slog)
+	if err != nil {
+		slog.Error(
+			"failed to initialize application",
+			"err", err,
+		)
+		return
+	}
 
 	if err := app.Run(sigCtx); err != nil {
-		fmt.Println(err)
+		slog.Error(
+			"failed to run server",
+			"err", err,
+		)
+		return
 	}
 }
