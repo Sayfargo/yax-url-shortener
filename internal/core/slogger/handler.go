@@ -7,10 +7,6 @@ import (
 	config_slogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
 )
 
-type ContextHandler struct {
-	slog.Handler
-}
-
 func newFileHandler(cfg config_slogger.FileConfig, file *os.File) slog.Handler {
 	switch cfg.Format {
 	case config_slogger.FormatJSON:
