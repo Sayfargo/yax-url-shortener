@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
 	core_server "github.com/Sayfargo/yax-url-shortener/internal/core/server"
-	core_slogger "github.com/Sayfargo/yax-url-shortener/internal/core/slogger"
 	core_storage_cache "github.com/Sayfargo/yax-url-shortener/internal/core/storage/cache"
 	core_storage_file "github.com/Sayfargo/yax-url-shortener/internal/core/storage/file"
 	core_transport_http_middleware "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/middleware"
@@ -23,7 +23,7 @@ type App struct {
 	Storage *core_storage_file.FileStorage
 }
 
-func New(cfg *config.Config, slog *core_slogger.Slogger) (*App, error) {
+func New(cfg *config.Config, slog *slog.Logger) (*App, error) {
 
 	// chi router/middlewares
 	rootRouter := chi.NewRouter()
@@ -45,17 +45,11 @@ func New(cfg *config.Config, slog *core_slogger.Slogger) (*App, error) {
 
 	// repositories
 	cr := repository_cache.New(cacheStorage)
-	fcr := repository_cache.Wrap(cr, fileStorage)
+	fcr, err := repository_cache.NewFileCacheRepository(cr, fileStorage)
 
-	slog.Info(
-		"starting restore data into cache",
-	)
-
-	// restore
-	if err := fcr.Restore(); err != nil {
-
+	if err != nil {
 		slog.Error(
-			"failed to restore data into cache",
+			"failed to initialize file cache repository",
 			"err", err,
 		)
 
@@ -63,10 +57,6 @@ func New(cfg *config.Config, slog *core_slogger.Slogger) (*App, error) {
 
 		return nil, fmt.Errorf("restore cache: %w", err)
 	}
-
-	slog.Info(
-		"data restoring succefully done",
-	)
 
 	svc := service.New(fcr, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), slog)
 	handler := handler.New(svc, slog)
