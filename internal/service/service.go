@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
 	repository_cache "github.com/Sayfargo/yax-url-shortener/internal/repository/cache"
@@ -21,13 +22,6 @@ type Generator interface {
 	Generate(alphabet string, size int) (string, error)
 }
 
-type Logger interface {
-	Info(msg string, args ...any)
-	Debug(msg string, args ...any)
-	Warn(msg string, args ...any)
-	Error(msg string, args ...any)
-}
-
 type GoNanoIDGenerator struct{}
 
 type UrlShortenerService struct {
@@ -35,7 +29,7 @@ type UrlShortenerService struct {
 	cacheRepo Repository
 
 	generator Generator
-	log       Logger
+	log       *slog.Logger
 	validate  *validator.Validate
 
 	// Base URL для генерации шорт юрла
@@ -47,7 +41,7 @@ func New(
 	generator Generator,
 	baseURL string,
 	validate *validator.Validate,
-	log Logger,
+	log *slog.Logger,
 ) *UrlShortenerService {
 	return &UrlShortenerService{
 		cacheRepo: cacheRepo,

@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"testing"
 
 	"net/url"
@@ -13,13 +15,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
-
-type NopLogger struct{}
-
-func (NopLogger) Debug(msg string, args ...any) {}
-func (NopLogger) Info(msg string, args ...any)  {}
-func (NopLogger) Warn(msg string, args ...any)  {}
-func (NopLogger) Error(msg string, args ...any) {}
 
 func TestCreateShortUrl_IncorrectUrl(t *testing.T) {
 	testcases := []struct {
@@ -35,14 +30,20 @@ func TestCreateShortUrl_IncorrectUrl(t *testing.T) {
 		{name: "Incorrect URL #5", url: "https://goog le", expectedErr: ErrIncorrectUrl},
 	}
 
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
+
 	mockRepo := NewMockRepository(t)
 	mockGen := NewMockGenerator(t)
-	mockLog := new(NopLogger)
 	baseURL := "https://base.com"
 
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
-			svc := New(mockRepo, mockGen, baseURL, validator.New(), mockLog)
+			svc := New(mockRepo, mockGen, baseURL, validator.New(), logger)
 
 			result, err := svc.CreateShortUrl(context.Background(), test.url)
 			assert.Empty(t, result)
@@ -54,10 +55,15 @@ func TestCreateShortUrl_IncorrectUrl(t *testing.T) {
 func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
 	mockRepo := NewMockRepository(t)
 	mockGen := NewMockGenerator(t)
-	mockLog := new(NopLogger)
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
 	mockRepo.EXPECT().Get(mock.Anything, mock.Anything).Return(mock.Anything, repository_cache.ErrNotExists)
 
-	svc := New(mockRepo, mockGen, "https://base.com", validator.New(), mockLog)
+	svc := New(mockRepo, mockGen, "https://base.com", validator.New(), logger)
 
 	result, err := svc.GetOriginalUrl(context.Background(), "fKM29FzE")
 	assert.Empty(t, result)
@@ -68,7 +74,12 @@ func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 
 	mockRepo := NewMockRepository(t)
 	mockGenerator := NewMockGenerator(t)
-	mockLog := new(NopLogger)
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
 
 	mockGenerator.EXPECT().Generate(alphabet, size).Return("ZEFIRMOY", nil).Once()
 	mockGenerator.EXPECT().Generate(alphabet, size).Return("BULOCHKA", nil).Once()
@@ -96,7 +107,7 @@ func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 		Return(nil).
 		Once()
 
-	svc := New(mockRepo, mockGenerator, "https://base.com", validator.New(), mockLog)
+	svc := New(mockRepo, mockGenerator, "https://base.com", validator.New(), logger)
 
 	require.NotEmpty(t, expectedUrl)
 
@@ -113,9 +124,14 @@ func TestGetOriginalUrl_ContextCanceled(t *testing.T) {
 
 	mockRepo := NewMockRepository(t)
 	mockGen := NewMockGenerator(t)
-	mockLog := new(NopLogger)
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
 
-	svc := New(mockRepo, mockGen, "https://base.com", validator.New(), mockLog)
+	svc := New(mockRepo, mockGen, "https://base.com", validator.New(), logger)
 
 	result, err := svc.GetOriginalUrl(ctx, "shortCode")
 	assert.Empty(t, result)
@@ -128,13 +144,18 @@ func TestCreateShortUrl_ContextCanceled(t *testing.T) {
 
 	mockRepo := NewMockRepository(t)
 	mockGen := NewMockGenerator(t)
-	mockLog := new(NopLogger)
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
 
 	t.Cleanup(func() {
 		mockRepo.AssertNotCalled(t, "Create")
 	})
 
-	svc := New(mockRepo, mockGen, "https://base.com", validator.New(), mockLog)
+	svc := New(mockRepo, mockGen, "https://base.com", validator.New(), logger)
 
 	result, err := svc.CreateShortUrl(ctx, "anything")
 	assert.Empty(t, result)
@@ -147,10 +168,15 @@ func TestGetOriginalUrl_Success(t *testing.T) {
 
 	mockRep := NewMockRepository(t)
 	mockGen := NewMockGenerator(t)
-	mockLog := new(NopLogger)
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
 	mockRep.EXPECT().Get(mock.Anything, mock.Anything).Return(expectedUrl, nil)
 
-	svc := New(mockRep, mockGen, "https://base.com", validator.New(), mockLog)
+	svc := New(mockRep, mockGen, "https://base.com", validator.New(), logger)
 
 	originalUrl, err := svc.GetOriginalUrl(context.Background(), "FLeq19fl")
 	require.NoError(t, err)
@@ -166,11 +192,16 @@ func TestCreateShortUrl_Success(t *testing.T) {
 
 	mockRep := NewMockRepository(t)
 	mockGen := NewMockGenerator(t)
-	mockLog := new(NopLogger)
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
 	mockGen.EXPECT().Generate(mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	mockRep.EXPECT().Create(mock.Anything, mock.Anything).Return(nil)
 
-	svc := New(mockRep, mockGen, "https://base.com", validator.New(), mockLog)
+	svc := New(mockRep, mockGen, "https://base.com", validator.New(), logger)
 
 	shortedUrl, err := svc.CreateShortUrl(context.Background(), testUrl)
 	require.NoError(t, err)

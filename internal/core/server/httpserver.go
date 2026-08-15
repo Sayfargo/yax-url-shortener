@@ -9,16 +9,15 @@ import (
 	"time"
 
 	config_server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
-	core_slogger "github.com/Sayfargo/yax-url-shortener/internal/core/slogger"
 )
 
 type HTTPServer struct {
 	server *http.Server
 
-	log *core_slogger.Slogger
+	log *slog.Logger
 }
 
-func New(handler http.Handler, cfg *config_server.Config, log *core_slogger.Slogger) *HTTPServer {
+func New(handler http.Handler, cfg *config_server.Config, log *slog.Logger) *HTTPServer {
 	return &HTTPServer{
 		server: &http.Server{
 			Addr:    cfg.Addr,

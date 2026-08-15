@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,13 +19,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
-
-type NopLogger struct{}
-
-func (NopLogger) Debug(msg string, args ...any) {}
-func (NopLogger) Info(msg string, args ...any)  {}
-func (NopLogger) Warn(msg string, args ...any)  {}
-func (NopLogger) Error(msg string, args ...any) {}
 
 func TestCreate_ErrorResponses(t *testing.T) {
 	testcases := []struct {
@@ -40,12 +34,17 @@ func TestCreate_ErrorResponses(t *testing.T) {
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
 			mockSvc := NewMockUrlShortener(t)
-			mockLog := new(NopLogger)
+			logger := slog.New(
+				slog.NewTextHandler(
+					io.Discard,
+					nil,
+				),
+			)
 			mockSvc.EXPECT().CreateShortUrl(mock.Anything, mock.Anything).Return(mock.Anything, test.serviceError)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader("bred..k"))
 
-			handler := New(mockSvc, mockLog)
+			handler := New(mockSvc, logger)
 			rw := httptest.NewRecorder()
 			handler.Create(rw, req)
 
@@ -71,7 +70,12 @@ func TestRedirect_ErrorResponses(t *testing.T) {
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
 			mockSvc := NewMockUrlShortener(t)
-			mockLog := new(NopLogger)
+			logger := slog.New(
+				slog.NewTextHandler(
+					io.Discard,
+					nil,
+				),
+			)
 			mockSvc.EXPECT().GetOriginalUrl(mock.Anything, test.shortCode).Return(mock.Anything, test.serviceError)
 
 			target := fmt.Sprintf("/%s", test.shortCode)
@@ -82,7 +86,7 @@ func TestRedirect_ErrorResponses(t *testing.T) {
 			chiCtx.URLParams.Add("id", test.shortCode)
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-			handler := New(mockSvc, mockLog)
+			handler := New(mockSvc, logger)
 			rw := httptest.NewRecorder()
 			handler.Redirect(rw, req)
 
@@ -101,7 +105,12 @@ func TestRedirect_InvalidShortCode(t *testing.T) {
 	target := fmt.Sprintf("/%s", shortCode)
 
 	mockSvc := NewMockUrlShortener(t)
-	mockLog := new(NopLogger)
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
 
 	req := httptest.NewRequest(method, target, nil)
 
@@ -109,7 +118,7 @@ func TestRedirect_InvalidShortCode(t *testing.T) {
 	chiCtx.URLParams.Add("id", shortCode)
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-	handler := New(mockSvc, mockLog)
+	handler := New(mockSvc, logger)
 	rw := httptest.NewRecorder()
 	handler.Redirect(rw, req)
 
@@ -129,7 +138,12 @@ func TestRedirect_Success(t *testing.T) {
 	expectedLocation := "https://practicum.yandex.ru/go-developer-basic/?utm_source=ya&utm_medium=cpc&utm_campaign=Yan_Sch_RF_Prog_goDeba_b2c_Gener_Regular_Double_460&utm_content=sty_search:s_none:cid_711044074:gid_5766687058:kw_---autotargeting:pid_205766687058:aid_1913818178131297445:crid_0:rid_205766687058:p_1:pty_premium:mty_:mkw_:dty_desktop:cgcid_26898027:rn_%D0%A0%D0%BE%D1%81%D1%82%D0%BE%D0%B2-%D0%BD%D0%B0-%D0%94%D0%BE%D0%BD%D1%83:rid_39&etext=2202.KjoxDN06I-3sj5_fsSRWOB0TSMATnrks0_yjlXz4VIt9yG7I4nH0y2lfhULhTcKlw9ebyjxB_nUVfFb_9yTKt2Z6cGluc2h2Z2RqbWF2b3c.9a6e93b16369f6b76e7982ecada5deb67b2bdcce&yclid=11936302318399520767"
 
 	mockSvc := NewMockUrlShortener(t)
-	mockLog := new(NopLogger)
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
 	mockSvc.EXPECT().GetOriginalUrl(mock.Anything, shortCode).Return(expectedLocation, nil)
 
 	req := httptest.NewRequest(method, target, nil)
@@ -138,7 +152,7 @@ func TestRedirect_Success(t *testing.T) {
 	chiCtx.URLParams.Add("id", shortCode)
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-	handler := New(mockSvc, mockLog)
+	handler := New(mockSvc, logger)
 	rw := httptest.NewRecorder()
 	handler.Redirect(rw, req)
 
@@ -157,14 +171,19 @@ func TestCreate_Success(t *testing.T) {
 	expected := "https://anything.com/Dkjf789E"
 	url := "https://practicum.yandex.ru/go-developer-basic/?utm_source=ya&utm_medium=cpc&utm_campaign=Yan_Sch_RF_Prog_goDeba_b2c_Gener_Regular_Double_460&utm_content=sty_search:s_none:cid_711044074:gid_5766687058:kw_---autotargeting:pid_205766687058:aid_1913818178131297445:crid_0:rid_205766687058:p_1:pty_premium:mty_:mkw_:dty_desktop:cgcid_26898027:rn_%D0%A0%D0%BE%D1%81%D1%82%D0%BE%D0%B2-%D0%BD%D0%B0-%D0%94%D0%BE%D0%BD%D1%83:rid_39&etext=2202.KjoxDN06I-3sj5_fsSRWOB0TSMATnrks0_yjlXz4VIt9yG7I4nH0y2lfhULhTcKlw9ebyjxB_nUVfFb_9yTKt2Z6cGluc2h2Z2RqbWF2b3c.9a6e93b16369f6b76e7982ecada5deb67b2bdcce&yclid=11936302318399520767"
 	// Мок сервисного слоя
-	mockLog := new(NopLogger)
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
 	mockSvc := NewMockUrlShortener(t)
 	mockSvc.EXPECT().CreateShortUrl(mock.Anything, url).Return(expected, nil)
 
 	req := httptest.NewRequest(method, target, strings.NewReader(url))
 	req.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, mockLog)
+	handler := New(mockSvc, logger)
 	rw := httptest.NewRecorder()
 	handler.Create(rw, req)
 
@@ -195,7 +214,12 @@ func TestShorten_ErrorResponses(t *testing.T) {
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
 			mockSvc := NewMockUrlShortener(t)
-			mockLog := new(NopLogger)
+			logger := slog.New(
+				slog.NewTextHandler(
+					io.Discard,
+					nil,
+				),
+			)
 			mockSvc.EXPECT().CreateShortUrl(mock.Anything, mock.Anything).Return(mock.Anything, test.serviceError)
 
 			request := ShortUrlRequest{
@@ -207,7 +231,7 @@ func TestShorten_ErrorResponses(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewReader(data))
 
-			handler := New(mockSvc, mockLog)
+			handler := New(mockSvc, logger)
 			rw := httptest.NewRecorder()
 			handler.Shorten(rw, req)
 
@@ -230,7 +254,12 @@ func TestShorten_CreateShortUrl(t *testing.T) {
 	)
 
 	mockSvc := NewMockUrlShortener(t)
-	mockLog := new(NopLogger)
+	logger := slog.New(
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
+	)
 	mockSvc.EXPECT().CreateShortUrl(mock.Anything, url).Return(expected, nil)
 
 	request := ShortUrlRequest{
@@ -243,7 +272,7 @@ func TestShorten_CreateShortUrl(t *testing.T) {
 	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, mockLog)
+	handler := New(mockSvc, logger)
 	rw := httptest.NewRecorder()
 	handler.Shorten(rw, userRequest)
 

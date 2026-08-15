@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
@@ -16,20 +17,13 @@ type UrlShortener interface {
 	GetOriginalUrl(ctx context.Context, shortCode string) (string, error)
 }
 
-type Logger interface {
-	Info(msg string, args ...any)
-	Debug(msg string, args ...any)
-	Warn(msg string, args ...any)
-	Error(msg string, args ...any)
-}
-
 type Handler struct {
 	service UrlShortener
 
-	log Logger
+	log *slog.Logger
 }
 
-func New(service UrlShortener, log Logger) *Handler {
+func New(service UrlShortener, log *slog.Logger) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
@@ -68,13 +62,13 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 				"code", shortCode,
 			)
 
-			http.Error(w, "internal server error", http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		} else {
 			h.log.Error(
 				"unexpected error during redirect",
 				"err", err,
 			)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		return
 	}
@@ -96,7 +90,7 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 			"err", err,
 		)
 
-		http.Error(w, "internal server error", http.StatusBadRequest)
+		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
 
@@ -129,7 +123,7 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 				"url", request.URL,
 			)
 
-			http.Error(w, "internal server error", http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		return
 	}
@@ -144,7 +138,7 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 			"err", err,
 		)
 
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -184,7 +178,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 				"err", err,
 				"url", url,
 			)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 		return
 	}
