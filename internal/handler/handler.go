@@ -44,6 +44,11 @@ func (h *Handler) Register(r chi.Router) {
 
 func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
 
+	if h.db == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	if err := h.db.Ping(r.Context()); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
