@@ -18,7 +18,7 @@ func RegisterFlags(fs *flag.FlagSet) *Config {
 	fs.StringVar(
 		&fileStorageConfig.FilePath,
 		"f",
-		"./urls.json",
+		"",
 		"URL file storage path",
 	)
 

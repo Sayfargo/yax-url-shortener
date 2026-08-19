@@ -11,8 +11,6 @@ type Config struct {
 	DBDsn string `env:"DATABASE_DSN"`
 }
 
-const defaultDsn = "postgres://user:pass@localhost:5432/db"
-
 func RegisterFlags(fs *flag.FlagSet) *Config {
 
 	postgresConfig := new(Config)
@@ -20,7 +18,7 @@ func RegisterFlags(fs *flag.FlagSet) *Config {
 	fs.StringVar(
 		&postgresConfig.DBDsn,
 		"d",
-		defaultDsn,
+		"",
 		"database url connection",
 	)
 

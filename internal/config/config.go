@@ -9,6 +9,14 @@ import (
 	config_storage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
 )
 
+type StorageType string
+
+const (
+	StorageTypeDB     StorageType = "database"
+	StorageTypeFile   StorageType = "file"
+	StorageTypeMemory StorageType = "memory"
+)
+
 type Config struct {
 	Server      *config_server.Config
 	DB          *config_db_postgres.Config
@@ -44,5 +52,19 @@ func Load(args []string) (*Config, error) {
 		DB:          dbConfig,
 		FileStorage: fileStorageConfig,
 	}, nil
+
+}
+
+func (c *Config) StorageType() StorageType {
+
+	if c.DB != nil && c.DB.DBDsn != "" {
+		return StorageTypeDB
+	}
+
+	if c.FileStorage != nil && c.FileStorage.FilePath != "" {
+		return StorageTypeFile
+	}
+
+	return StorageTypeMemory
 
 }

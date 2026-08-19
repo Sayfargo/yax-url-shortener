@@ -14,6 +14,7 @@ import (
 	core_transport_http_middleware "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/middleware"
 	"github.com/Sayfargo/yax-url-shortener/internal/handler"
 	repository_cache "github.com/Sayfargo/yax-url-shortener/internal/repository/cache"
+	repository_postgres "github.com/Sayfargo/yax-url-shortener/internal/repository/postgres"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
@@ -28,52 +29,57 @@ type App struct {
 
 func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
-	// database initialize
-	db, err := core_db_postgres.New(*cfg.DB, log)
-	if err != nil {
-
-		log.Error(
-			"failed to create db connection pool",
-			"err", err,
-		)
-
-		return nil, fmt.Errorf("database initialize: %w", err)
-	}
-
 	// chi router/middlewares
 	rootRouter := chi.NewRouter()
 	rootRouter.Use(core_transport_http_middleware.Logging(log))
 	rootRouter.Use(core_transport_http_middleware.GzipCompress())
 
-	// storages
-	cacheStorage := core_storage_cache.Init()
-	fileStorage, err := core_storage_file.Init(cfg.FileStorage)
-	if err != nil {
+	var (
+		db          *pgxpool.Pool
+		fileStorage *core_storage_file.FileStorage
+		activeRepo  service.Repository
+		err         error
+	)
+	/*
+		Выбираем хранилище в зависимости от конфигурации или примененных флагов
+		Если флаг или env для DB были заданы, то используем базу данных
+		Если флаг или env для DB не были заданы, но были заданы для File storage - используем File storage
+		Если флаг или env не были заданы ни для DB ни для File storage - используем in memory
+	*/
+	switch cfg.StorageType() {
+	case config.StorageTypeDB:
+		db, err = core_db_postgres.New(*cfg.DB, log)
+		if err != nil {
+			log.Error("failed to create db connection pool", "err", err)
+			return nil, fmt.Errorf("database initialize: %w", err)
+		}
+		activeRepo = repository_postgres.New(db)
 
-		slog.Error(
-			"failed to initialize file storage",
-			"err", err,
-		)
+	case config.StorageTypeFile:
+		fileStorage, err = core_storage_file.Init(cfg.FileStorage)
+		if err != nil {
+			log.Error("failed to initialize file storage", "err", err)
+			return nil, fmt.Errorf("file storage init: %w", err)
+		}
 
-		return nil, fmt.Errorf("file storage init: %w", err)
+		cacheStorage := core_storage_cache.Init()
+		cr := repository_cache.New(cacheStorage)
+
+		fcr, err := repository_cache.NewFileCacheRepository(cr, fileStorage)
+		if err != nil {
+			log.Error("failed to initialize file cache repository", "err", err)
+			_ = fileStorage.Close()
+			return nil, fmt.Errorf("restore cache: %w", err)
+		}
+
+		activeRepo = fcr
+
+	case config.StorageTypeMemory:
+		cacheStorage := core_storage_cache.Init()
+		activeRepo = repository_cache.New(cacheStorage)
 	}
 
-	// repositories
-	cr := repository_cache.New(cacheStorage)
-	fcr, err := repository_cache.NewFileCacheRepository(cr, fileStorage)
-
-	if err != nil {
-		slog.Error(
-			"failed to initialize file cache repository",
-			"err", err,
-		)
-
-		_ = fileStorage.Close()
-
-		return nil, fmt.Errorf("restore cache: %w", err)
-	}
-
-	svc := service.New(fcr, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), log)
+	svc := service.New(activeRepo, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), log)
 	h := handler.New(svc, log, db)
 	h.Register(rootRouter)
 
