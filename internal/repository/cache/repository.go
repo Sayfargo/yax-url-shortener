@@ -7,6 +7,7 @@ import (
 
 	core_storage_cache "github.com/Sayfargo/yax-url-shortener/internal/core/storage/cache"
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
+	repository_errors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
 )
 
 type CacheRepository struct {
@@ -19,12 +20,6 @@ func New(cache *core_storage_cache.Cache) *CacheRepository {
 	}
 }
 
-var (
-	ErrNotExists      = errors.New("row not found in db")
-	ErrAlreadyExists  = errors.New("row already exists")
-	ErrUnexpectedType = errors.New("unexpected data type in cache")
-)
-
 func (r *CacheRepository) Get(ctx context.Context, shortCode string) (string, error) {
 
 	if ctx.Err() != nil {
@@ -34,14 +29,14 @@ func (r *CacheRepository) Get(ctx context.Context, shortCode string) (string, er
 	value, err := r.cache.Get(shortCode)
 	if err != nil {
 		if errors.Is(err, core_storage_cache.ErrNotFound) {
-			return "", ErrNotExists
+			return "", repository_errors.ErrNotExists
 		}
 		return "", fmt.Errorf("cache storage get err: %w", err)
 	}
 
 	shortenedUrl, ok := value.(model.ShortenedUrl)
 	if !ok {
-		return "", ErrUnexpectedType
+		return "", repository_errors.ErrUnexpectedType
 	}
 
 	return shortenedUrl.OriginalUrl, nil
@@ -57,7 +52,7 @@ func (r *CacheRepository) Create(ctx context.Context, shortenedUrl model.Shorten
 	// Если новые ошибки появятся
 	switch {
 	case err == nil:
-		return ErrAlreadyExists
+		return repository_errors.ErrAlreadyExists
 	case !errors.Is(err, core_storage_cache.ErrNotFound):
 		return err
 	}

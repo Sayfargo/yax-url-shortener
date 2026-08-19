@@ -9,7 +9,7 @@ import (
 	"net/url"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
-	repository_cache "github.com/Sayfargo/yax-url-shortener/internal/repository/cache"
+	repository_errors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -61,7 +61,7 @@ func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
 			nil,
 		),
 	)
-	mockRepo.EXPECT().Get(mock.Anything, mock.Anything).Return(mock.Anything, repository_cache.ErrNotExists)
+	mockRepo.EXPECT().Get(mock.Anything, mock.Anything).Return(mock.Anything, repository_errors.ErrNotExists)
 
 	svc := New(mockRepo, mockGen, "https://base.com", validator.New(), logger)
 
@@ -94,7 +94,7 @@ func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 					u.OriginalUrl == "https://original.url"
 			}),
 		).
-		Return(repository_cache.ErrAlreadyExists).
+		Return(repository_errors.ErrAlreadyExists).
 		Once()
 	mockRepo.EXPECT().
 		Create(

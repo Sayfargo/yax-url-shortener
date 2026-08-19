@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
-	repository_cache "github.com/Sayfargo/yax-url-shortener/internal/repository/cache"
+	repository_errors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid/v2"
@@ -71,9 +71,9 @@ func (s *UrlShortenerService) GetOriginalUrl(ctx context.Context, shortCode stri
 
 	originalUrl, err := s.cacheRepo.Get(ctx, shortCode)
 	if err != nil {
-		if errors.Is(err, repository_cache.ErrNotExists) {
+		if errors.Is(err, repository_errors.ErrNotExists) {
 			return "", ErrUrlDoesNotExists
-		} else if errors.Is(err, repository_cache.ErrUnexpectedType) {
+		} else if errors.Is(err, repository_errors.ErrUnexpectedType) {
 			return "", ErrCorruptedData
 		}
 		return "", fmt.Errorf("repository get err: %w", err)
@@ -100,7 +100,7 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 		}
 
 		shortenedUrl := model.ShortenedUrl{
-			UUID:        uuid.New().String(),
+			UUID:        uuid.New(),
 			ShortCode:   shortCode,
 			OriginalUrl: url,
 		}
@@ -112,7 +112,7 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 
 			return s.buildShortedUrl(shortCode), nil
 
-		case errors.Is(err, repository_cache.ErrAlreadyExists):
+		case errors.Is(err, repository_errors.ErrAlreadyExists):
 
 			s.log.Info(
 				"short code collision occurred, retrying",
