@@ -19,14 +19,19 @@ type UrlShortener interface {
 
 type Handler struct {
 	service UrlShortener
-
-	log *slog.Logger
+	log     *slog.Logger
+	db      DBHealthChecker
 }
 
-func New(service UrlShortener, log *slog.Logger) *Handler {
+type DBHealthChecker interface {
+	Ping(ctx context.Context) error
+}
+
+func New(service UrlShortener, log *slog.Logger, db DBHealthChecker) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
+		db:      db,
 	}
 }
 
@@ -34,6 +39,17 @@ func (h *Handler) Register(r chi.Router) {
 	r.Post("/", h.Create)
 	r.Post("/api/shorten", h.Shorten)
 	r.Get("/{id}", h.Redirect)
+	r.Get("/ping", h.Ping)
+}
+
+func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
+
+	if err := h.db.Ping(r.Context()); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {

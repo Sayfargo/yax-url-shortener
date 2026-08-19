@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
+	core_db_postgres "github.com/Sayfargo/yax-url-shortener/internal/core/db/postgres"
 	core_server "github.com/Sayfargo/yax-url-shortener/internal/core/server"
 	core_storage_cache "github.com/Sayfargo/yax-url-shortener/internal/core/storage/cache"
 	core_storage_file "github.com/Sayfargo/yax-url-shortener/internal/core/storage/file"
@@ -16,18 +17,32 @@ import (
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type App struct {
 	Server  *core_server.HTTPServer
+	DB      *pgxpool.Pool
 	Storage *core_storage_file.FileStorage
 }
 
-func New(cfg *config.Config, slog *slog.Logger) (*App, error) {
+func New(cfg *config.Config, log *slog.Logger) (*App, error) {
+
+	// database initialize
+	db, err := core_db_postgres.New(*cfg.DB, log)
+	if err != nil {
+
+		log.Error(
+			"failed to create db connection pool",
+			"err", err,
+		)
+
+		return nil, fmt.Errorf("database initialize: %w", err)
+	}
 
 	// chi router/middlewares
 	rootRouter := chi.NewRouter()
-	rootRouter.Use(core_transport_http_middleware.Logging(slog))
+	rootRouter.Use(core_transport_http_middleware.Logging(log))
 	rootRouter.Use(core_transport_http_middleware.GzipCompress())
 
 	// storages
@@ -58,14 +73,15 @@ func New(cfg *config.Config, slog *slog.Logger) (*App, error) {
 		return nil, fmt.Errorf("restore cache: %w", err)
 	}
 
-	svc := service.New(fcr, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), slog)
-	handler := handler.New(svc, slog)
-	handler.Register(rootRouter)
+	svc := service.New(fcr, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), log)
+	h := handler.New(svc, log, db)
+	h.Register(rootRouter)
 
-	httpServer := core_server.New(rootRouter, cfg.Server, slog)
+	httpServer := core_server.New(rootRouter, cfg.Server, log)
 
 	return &App{
 		Server:  httpServer,
+		DB:      db,
 		Storage: fileStorage,
 	}, nil
 
@@ -75,15 +91,14 @@ func (a *App) Run(ctx context.Context) (errs error) {
 
 	defer func() {
 
-		if a.Storage == nil {
-			return
+		if a.Storage != nil {
+			if err := a.Storage.Close(); err != nil {
+				errs = errors.Join(errs, fmt.Errorf("file storage close: %w", err))
+			}
 		}
 
-		if err := a.Storage.Close(); err != nil {
-			errs = errors.Join(
-				errs,
-				fmt.Errorf("file storage close: %w", err),
-			)
+		if a.DB != nil {
+			a.DB.Close()
 		}
 	}()
 

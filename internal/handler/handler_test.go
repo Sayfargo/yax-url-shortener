@@ -20,6 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type NoDB struct{}
+
+func (nd *NoDB) Ping(ctx context.Context) error { return nil }
 func TestCreate_ErrorResponses(t *testing.T) {
 	testcases := []struct {
 		name         string
@@ -44,7 +47,7 @@ func TestCreate_ErrorResponses(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader("bred..k"))
 
-			handler := New(mockSvc, logger)
+			handler := New(mockSvc, logger, new(NoDB))
 			rw := httptest.NewRecorder()
 			handler.Create(rw, req)
 
@@ -86,7 +89,7 @@ func TestRedirect_ErrorResponses(t *testing.T) {
 			chiCtx.URLParams.Add("id", test.shortCode)
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-			handler := New(mockSvc, logger)
+			handler := New(mockSvc, logger, new(NoDB))
 			rw := httptest.NewRecorder()
 			handler.Redirect(rw, req)
 
@@ -118,7 +121,7 @@ func TestRedirect_InvalidShortCode(t *testing.T) {
 	chiCtx.URLParams.Add("id", shortCode)
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-	handler := New(mockSvc, logger)
+	handler := New(mockSvc, logger, new(NoDB))
 	rw := httptest.NewRecorder()
 	handler.Redirect(rw, req)
 
@@ -152,7 +155,7 @@ func TestRedirect_Success(t *testing.T) {
 	chiCtx.URLParams.Add("id", shortCode)
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-	handler := New(mockSvc, logger)
+	handler := New(mockSvc, logger, new(NoDB))
 	rw := httptest.NewRecorder()
 	handler.Redirect(rw, req)
 
@@ -183,7 +186,7 @@ func TestCreate_Success(t *testing.T) {
 	req := httptest.NewRequest(method, target, strings.NewReader(url))
 	req.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger)
+	handler := New(mockSvc, logger, new(NoDB))
 	rw := httptest.NewRecorder()
 	handler.Create(rw, req)
 
@@ -231,7 +234,7 @@ func TestShorten_ErrorResponses(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewReader(data))
 
-			handler := New(mockSvc, logger)
+			handler := New(mockSvc, logger, new(NoDB))
 			rw := httptest.NewRecorder()
 			handler.Shorten(rw, req)
 
@@ -272,7 +275,7 @@ func TestShorten_CreateShortUrl(t *testing.T) {
 	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger)
+	handler := New(mockSvc, logger, new(NoDB))
 	rw := httptest.NewRecorder()
 	handler.Shorten(rw, userRequest)
 
