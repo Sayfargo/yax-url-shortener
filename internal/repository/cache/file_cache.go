@@ -27,7 +27,22 @@ func NewFileCacheRepository(cacheRepository *CacheRepository, fileStorage *core_
 	return repo, nil
 }
 
+func (r *FileCacheRepository) CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	if err := r.CacheRepository.CreateBatch(ctx, shortenedUrls); err != nil {
+		return err
+	}
+
+	return r.fs.WriteURLs(shortenedUrls)
+}
+
 func (r *FileCacheRepository) Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if err := r.CacheRepository.Create(ctx, shortenedUrl); err != nil {
 		return err
 	}
