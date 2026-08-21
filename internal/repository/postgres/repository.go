@@ -45,6 +45,40 @@ func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string
 
 }
 
+func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	batch := new(pgx.Batch)
+
+	query := `
+		INSERT INTO shortened_urls (uuid, short_code, original_url)
+		VALUES ($1, $2, $3)
+	`
+	for _, u := range shortenedUrls {
+		batch.Queue(query, u.UUID, u.ShortCode, u.OriginalUrl)
+	}
+
+	// В документации к SendBatch написано что запросы выполняются в рамках неявной транзакции
+	// Если это неверно, поправь меня
+	br := pr.pool.SendBatch(ctx, batch)
+	defer br.Close()
+
+	for i := range len(shortenedUrls) {
+		_, err := br.Exec()
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == pgxUniqueErr {
+				return &repository_errors.BatchConflictError{Index: i, Err: repository_errors.ErrAlreadyExists}
+			}
+			return fmt.Errorf("batch exec item %d: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
 func (pr *PostgresRepository) Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -55,10 +89,9 @@ func (pr *PostgresRepository) Create(ctx context.Context, shortenedUrl model.Sho
 	_, err := pr.pool.Exec(ctx, query, shortenedUrl.UUID, shortenedUrl.ShortCode, shortenedUrl.OriginalUrl)
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			if pgErr.Code == pgxUniqueErr {
-				return repository_errors.ErrAlreadyExists
-			}
+		if errors.As(err, &pgErr) && pgErr.Code == pgxUniqueErr {
+			return repository_errors.ErrAlreadyExists
+
 		}
 		return fmt.Errorf("pool exec: %w", err)
 	}
