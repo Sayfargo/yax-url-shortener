@@ -95,6 +95,63 @@ func (_c *MockRepository_Create_Call) RunAndReturn(run func(ctx context.Context,
 	return _c
 }
 
+// CreateBatch provides a mock function for the type MockRepository
+func (_mock *MockRepository) CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error {
+	ret := _mock.Called(ctx, shortenedUrls)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateBatch")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []model.ShortenedUrl) error); ok {
+		r0 = returnFunc(ctx, shortenedUrls)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockRepository_CreateBatch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateBatch'
+type MockRepository_CreateBatch_Call struct {
+	*mock.Call
+}
+
+// CreateBatch is a helper method to define mock.On call
+//   - ctx context.Context
+//   - shortenedUrls []model.ShortenedUrl
+func (_e *MockRepository_Expecter) CreateBatch(ctx any, shortenedUrls any) *MockRepository_CreateBatch_Call {
+	return &MockRepository_CreateBatch_Call{Call: _e.mock.On("CreateBatch", ctx, shortenedUrls)}
+}
+
+func (_c *MockRepository_CreateBatch_Call) Run(run func(ctx context.Context, shortenedUrls []model.ShortenedUrl)) *MockRepository_CreateBatch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []model.ShortenedUrl
+		if args[1] != nil {
+			arg1 = args[1].([]model.ShortenedUrl)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_CreateBatch_Call) Return(err error) *MockRepository_CreateBatch_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockRepository_CreateBatch_Call) RunAndReturn(run func(ctx context.Context, shortenedUrls []model.ShortenedUrl) error) *MockRepository_CreateBatch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Get provides a mock function for the type MockRepository
 func (_mock *MockRepository) Get(ctx context.Context, shortCode string) (string, error) {
 	ret := _mock.Called(ctx, shortCode)
