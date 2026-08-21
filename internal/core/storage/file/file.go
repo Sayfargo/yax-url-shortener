@@ -39,6 +39,19 @@ func (fs *FileStorage) WriteURL(shortenedUrl model.ShortenedUrl) error {
 	return fs.encoder.Encode(shortenedUrl)
 }
 
+func (fs *FileStorage) WriteURLs(shortenedUrls []model.ShortenedUrl) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	for _, shortenedUrl := range shortenedUrls {
+		if err := fs.encoder.Encode(shortenedUrl); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (fs *FileStorage) ReadURLs() ([]model.ShortenedUrl, error) {
 
 	fs.mu.Lock()
