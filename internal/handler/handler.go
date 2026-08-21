@@ -88,7 +88,7 @@ func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp, err := h.service.CreateUrlBatch(r.Context(), serviceReq)
+	result, err := h.service.CreateUrlBatch(r.Context(), serviceReq)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			h.log.Debug("create short url canceled by client")
@@ -119,7 +119,14 @@ func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := json.Marshal(resp)
+	response := make([]CreateUrlBatchResponse, len(result))
+
+	for i, u := range result {
+		response[i].CorrelationID = u.CorrelationID
+		response[i].ShortURL = u.ShortURL
+	}
+
+	data, err := json.Marshal(response)
 	if err != nil {
 		h.log.Error(
 			"failed to marshal response json",

@@ -264,6 +264,17 @@ func TestShortenBatch_Success(t *testing.T) {
 		},
 	}
 
+	expectedBody := []CreateUrlBatchResponse{
+		{
+			CorrelationID: "1",
+			ShortURL:      "http://localhost:8080/HeZ1klEf",
+		},
+		{
+			CorrelationID: "2",
+			ShortURL:      "http://localhost:8080/FhJ41liz",
+		},
+	}
+
 	mockSvc := NewMockUrlShortener(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
@@ -294,13 +305,13 @@ func TestShortenBatch_Success(t *testing.T) {
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
-	var actual []service.CreateUrlBatchResponse
+	var actual []CreateUrlBatchResponse
 
 	err = json.NewDecoder(resp.Body).Decode(&actual)
 	require.NoError(t, err)
 
 	assert.Equal(t, header, resp.Header.Get("Content-Type"))
-	assert.Equal(t, expectedResp, actual)
+	assert.Equal(t, expectedBody, actual)
 
 }
 
