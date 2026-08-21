@@ -23,6 +23,287 @@ import (
 type NoDB struct{}
 
 func (nd *NoDB) Ping(ctx context.Context) error { return nil }
+
+func TestShortenBatch_EmptyBatch(t *testing.T) {
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	request := []CreateUrlBatchRequest{}
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().CreateUrlBatch(mock.Anything, mock.Anything).Return(nil, service.ErrEmptyBatch)
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, new(NoDB))
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, "empty batch\n", string(body))
+}
+
+func TestShortenBatch_UnexpectedError(t *testing.T) {
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	request := []CreateUrlBatchRequest{
+		{
+			CorrelationID: "1",
+			OriginalURL:   "https://google.com",
+		},
+		{
+			CorrelationID: "2",
+			OriginalURL:   "https://github.com",
+		},
+	}
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().CreateUrlBatch(mock.Anything, mock.Anything).Return(nil, errors.New("unexpected error"))
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, new(NoDB))
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+}
+
+func TestShortenBatch_CollisionLimitExceeded(t *testing.T) {
+
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	request := []CreateUrlBatchRequest{
+		{
+			CorrelationID: "1",
+			OriginalURL:   "https://google.com",
+		},
+		{
+			CorrelationID: "2",
+			OriginalURL:   "https://github.com",
+		},
+	}
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().CreateUrlBatch(mock.Anything, mock.Anything).Return(nil, service.ErrShortCodeCollisionLimitExceeded)
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, new(NoDB))
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, "failed to process request, please try again\n", string(body))
+}
+
+func TestShortenBatch_IncorrectURL(t *testing.T) {
+
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	request := []CreateUrlBatchRequest{
+		{
+			CorrelationID: "1",
+			OriginalURL:   "biliberda!...",
+		},
+		{
+			CorrelationID: "2",
+			OriginalURL:   "https://github.com",
+		},
+	}
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().CreateUrlBatch(mock.Anything, mock.Anything).Return(nil, service.ErrIncorrectUrl)
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, new(NoDB))
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+}
+
+func TestShortenBatch_TooLargeBodyRequest(t *testing.T) {
+
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	payload := []byte(
+		`[{"correlation_id":"1","original_url":"` +
+			strings.Repeat("a", maxBodySize+100) +
+			`"}]`,
+	)
+
+	require.Greater(t, len(payload), maxBodySize)
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(payload))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, new(NoDB))
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	response := rw.Result()
+	defer response.Body.Close()
+	assert.Equal(t, http.StatusRequestEntityTooLarge, response.StatusCode)
+
+}
+
+func TestShortenBatch_InvalidJSON(t *testing.T) {
+
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	body := strings.NewReader(".![]>:)")
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	userRequest := httptest.NewRequest(method, target, body)
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, new(NoDB))
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, "failed to read request body\n", string(data))
+}
+
+func TestShortenBatch_Success(t *testing.T) {
+
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	expectedResp := []service.CreateUrlBatchResponse{
+		{
+			CorrelationID: "1",
+			ShortURL:      "http://localhost:8080/HeZ1klEf",
+		},
+		{
+			CorrelationID: "2",
+			ShortURL:      "http://localhost:8080/FhJ41liz",
+		},
+	}
+
+	mockSvc := NewMockUrlShortener(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().CreateUrlBatch(mock.Anything, mock.Anything).Return(expectedResp, nil)
+
+	request := []CreateUrlBatchRequest{
+		{
+			CorrelationID: "1",
+			OriginalURL:   "https://google.com",
+		},
+		{
+			CorrelationID: "2",
+			OriginalURL:   "https://github.com",
+		},
+	}
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, log, new(NoDB))
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	var actual []service.CreateUrlBatchResponse
+
+	err = json.NewDecoder(resp.Body).Decode(&actual)
+	require.NoError(t, err)
+
+	assert.Equal(t, header, resp.Header.Get("Content-Type"))
+	assert.Equal(t, expectedResp, actual)
+
+}
+
 func TestCreate_ErrorResponses(t *testing.T) {
 	testcases := []struct {
 		name         string
@@ -284,8 +565,6 @@ func TestShorten_CreateShortUrl(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, response.StatusCode)
 
 	body, err := io.ReadAll(response.Body)
-	require.NoError(t, err)
-
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, body)
