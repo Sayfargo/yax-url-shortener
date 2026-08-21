@@ -17,6 +17,7 @@ type Repository interface {
 	Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error
 	CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error
 	Get(ctx context.Context, shortCode string) (string, error)
+	GetByOriginalURL(ctx context.Context, url string) (string, error)
 }
 
 type Generator interface {
@@ -59,6 +60,7 @@ var (
 	ErrIncorrectUrl                    = errors.New("incorrect url")
 	ErrCorruptedData                   = errors.New("cached data is corrupted or invalid")
 	ErrEmptyBatch                      = errors.New("empty batch")
+	ErrOriginalURLConflict             = errors.New("original url conflict")
 )
 
 const (
@@ -82,7 +84,7 @@ func (s *UrlShortenerService) CreateUrlBatch(ctx context.Context, req []CreateUr
 	}
 
 	if len(req) == 0 {
-		return nil, errors.New("empty batch")
+		return nil, ErrEmptyBatch
 	}
 
 	shortenedUrls := make([]model.ShortenedUrl, len(req))
@@ -196,12 +198,14 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 
 		err = s.repo.Create(ctx, shortenedUrl)
 
+		var origUrlConflictErr *repository_errors.OriginalUrlConflictError
+
 		switch {
 		case err == nil:
 
 			return s.buildShortedUrl(shortCode), nil
 
-		case errors.Is(err, repository_errors.ErrAlreadyExists):
+		case errors.Is(err, repository_errors.ErrConflictShortCode):
 
 			s.log.Info(
 				"short code collision occurred, retrying",
@@ -209,8 +213,18 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 				"code", shortCode,
 				"attempt", attempt+1,
 			)
-
 			continue
+		case errors.As(err, &origUrlConflictErr):
+
+			shortCode, err := s.repo.GetByOriginalURL(ctx, origUrlConflictErr.URL)
+			if err != nil {
+				if errors.Is(err, repository_errors.ErrNotExists) {
+					return "", fmt.Errorf("get existing url after conflict: %w", err)
+				}
+				return "", fmt.Errorf("repository get orig url: %w", err)
+			}
+
+			return s.buildShortedUrl(shortCode), ErrOriginalURLConflict
 
 		default:
 

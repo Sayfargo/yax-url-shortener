@@ -19,6 +19,107 @@ import (
 
 const baseUrl = "https://base.com"
 
+func TestCreateShortUrl_OriginalURLConflict_GetExistingError(t *testing.T) {
+	repo := NewMockRepository(t)
+	generator := NewMockGenerator(t)
+
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	validate := validator.New()
+
+	service := New(
+		repo,
+		generator,
+		baseUrl,
+		validate,
+		log,
+	)
+
+	originalURL := "https://google.com"
+
+	generator.EXPECT().
+		Generate(alphabet, size).
+		Return("abc12345", nil)
+
+	repo.EXPECT().
+		Create(mock.Anything, mock.Anything).
+		Return(&repository_errors.OriginalUrlConflictError{
+			URL: originalURL,
+		})
+
+	repo.EXPECT().
+		GetByOriginalURL(mock.Anything, originalURL).
+		Return(
+			"",
+			repository_errors.ErrNotExists,
+		)
+
+	result, err := service.CreateShortUrl(
+		context.Background(),
+		originalURL,
+	)
+
+	require.Error(t, err)
+
+	assert.Empty(t, result)
+
+	assert.ErrorContains(
+		t,
+		err,
+		"get existing url after conflict",
+	)
+}
+
+func TestCreateShortUrl_OriginalURLConflict(t *testing.T) {
+	repo := NewMockRepository(t)
+	generator := NewMockGenerator(t)
+
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	validate := validator.New()
+
+	service := New(
+		repo,
+		generator,
+		baseUrl,
+		validate,
+		log,
+	)
+
+	originalURL := "https://google.com"
+
+	generator.EXPECT().
+		Generate(alphabet, size).
+		Return("abc12345", nil)
+
+	repo.EXPECT().
+		Create(
+			mock.Anything,
+			mock.MatchedBy(func(u model.ShortenedUrl) bool {
+				return u.OriginalUrl == originalURL &&
+					u.ShortCode == "abc12345"
+			}),
+		).
+		Return(&repository_errors.OriginalUrlConflictError{
+			URL: originalURL,
+		})
+
+	repo.EXPECT().
+		GetByOriginalURL(mock.Anything, originalURL).
+		Return("existingCode", nil)
+
+	result, err := service.CreateShortUrl(
+		context.Background(),
+		originalURL,
+	)
+
+	require.ErrorIs(t, err, ErrOriginalURLConflict)
+
+	assert.Equal(
+		t,
+		baseUrl+"/"+"existingCode",
+		result,
+	)
+}
+
 func TestCreateUrlBatch_EmptyBatch(t *testing.T) {
 	req := []CreateUrlBatchRequest{}
 
@@ -376,7 +477,7 @@ func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 					u.OriginalUrl == "https://original.url"
 			}),
 		).
-		Return(repository_errors.ErrAlreadyExists).
+		Return(repository_errors.ErrConflictShortCode).
 		Once()
 	mockRepo.EXPECT().
 		Create(

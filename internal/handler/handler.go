@@ -222,20 +222,24 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shortedUrl, err := h.service.CreateShortUrl(r.Context(), request.URL)
+
+	status := http.StatusCreated
+
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		switch {
+		case errors.Is(err, context.Canceled):
 			h.log.Debug("create short url canceled by client")
 			w.WriteHeader(499)
-		} else if errors.Is(err, service.ErrShortCodeCollisionLimitExceeded) {
-
+			return
+		case errors.Is(err, service.ErrShortCodeCollisionLimitExceeded):
 			h.log.Warn(
 				"short code collision limit exceeded",
 				"url", request.URL,
 			)
 
 			http.Error(w, "failed to process request, please try again", http.StatusInternalServerError)
-		} else if errors.Is(err, service.ErrIncorrectUrl) {
-
+			return
+		case errors.Is(err, service.ErrIncorrectUrl):
 			h.log.Info(
 				"incorrect url request",
 				"err", err,
@@ -243,8 +247,10 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 			)
 
 			http.Error(w, "incorrect URL", http.StatusBadRequest)
-		} else {
-
+			return
+		case errors.Is(err, service.ErrOriginalURLConflict):
+			status = http.StatusConflict
+		default:
 			h.log.Error(
 				"unexpected error during url shortening",
 				"err", err,
@@ -252,8 +258,8 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 			)
 
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
 		}
-		return
 	}
 
 	response.Result = shortedUrl
@@ -269,7 +275,7 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(status)
 	w.Write(data)
 }
 
@@ -288,29 +294,47 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	url := string(data)
 
 	shortedUrl, err := h.service.CreateShortUrl(r.Context(), url)
+
+	status := http.StatusCreated
+
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		switch {
+		case errors.Is(err, context.Canceled):
 			h.log.Debug("create short url canceled by client")
-		} else if errors.Is(err, service.ErrShortCodeCollisionLimitExceeded) {
+			w.WriteHeader(499)
+			return
+		case errors.Is(err, service.ErrShortCodeCollisionLimitExceeded):
 			h.log.Warn(
 				"short code collision limit exceeded",
 				"url", url,
 			)
+
 			http.Error(w, "failed to process request, please try again", http.StatusInternalServerError)
-		} else if errors.Is(err, service.ErrIncorrectUrl) {
+			return
+		case errors.Is(err, service.ErrIncorrectUrl):
+			h.log.Info(
+				"incorrect url request",
+				"err", err,
+				"url", url,
+			)
+
 			http.Error(w, "incorrect URL", http.StatusBadRequest)
-		} else {
+			return
+		case errors.Is(err, service.ErrOriginalURLConflict):
+			status = http.StatusConflict
+		default:
 			h.log.Error(
 				"unexpected error during url shortening",
 				"err", err,
 				"url", url,
 			)
+
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
 		}
-		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(status)
 	w.Write([]byte(shortedUrl))
 }

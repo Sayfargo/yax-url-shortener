@@ -6,9 +6,9 @@ import (
 )
 
 var (
-	ErrNotExists      = errors.New("row not found in db")
-	ErrAlreadyExists  = errors.New("row already exists")
-	ErrUnexpectedType = errors.New("unexpected data type in cache")
+	ErrNotExists         = errors.New("row not found in db")
+	ErrConflictShortCode = errors.New("short code already exists")
+	ErrUnexpectedType    = errors.New("unexpected data type in cache")
 )
 
 type BatchConflictError struct {
@@ -18,4 +18,12 @@ type BatchConflictError struct {
 
 func (e *BatchConflictError) Error() string {
 	return fmt.Sprintf("conflict at index %d: %v", e.Index, e.Err)
+}
+
+type OriginalUrlConflictError struct {
+	URL string
+}
+
+func (o *OriginalUrlConflictError) Error() string {
+	return fmt.Sprintf("conflict at url: %s", o.URL)
 }

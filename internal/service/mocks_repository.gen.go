@@ -217,3 +217,69 @@ func (_c *MockRepository_Get_Call) RunAndReturn(run func(ctx context.Context, sh
 	_c.Call.Return(run)
 	return _c
 }
+
+// GetByOriginalURL provides a mock function for the type MockRepository
+func (_mock *MockRepository) GetByOriginalURL(ctx context.Context, url string) (string, error) {
+	ret := _mock.Called(ctx, url)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByOriginalURL")
+	}
+
+	var r0 string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return returnFunc(ctx, url)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = returnFunc(ctx, url)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = returnFunc(ctx, url)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_GetByOriginalURL_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByOriginalURL'
+type MockRepository_GetByOriginalURL_Call struct {
+	*mock.Call
+}
+
+// GetByOriginalURL is a helper method to define mock.On call
+//   - ctx context.Context
+//   - url string
+func (_e *MockRepository_Expecter) GetByOriginalURL(ctx any, url any) *MockRepository_GetByOriginalURL_Call {
+	return &MockRepository_GetByOriginalURL_Call{Call: _e.mock.On("GetByOriginalURL", ctx, url)}
+}
+
+func (_c *MockRepository_GetByOriginalURL_Call) Run(run func(ctx context.Context, url string)) *MockRepository_GetByOriginalURL_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_GetByOriginalURL_Call) Return(s string, err error) *MockRepository_GetByOriginalURL_Call {
+	_c.Call.Return(s, err)
+	return _c
+}
+
+func (_c *MockRepository_GetByOriginalURL_Call) RunAndReturn(run func(ctx context.Context, url string) (string, error)) *MockRepository_GetByOriginalURL_Call {
+	_c.Call.Return(run)
+	return _c
+}

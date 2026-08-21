@@ -24,6 +24,95 @@ type NoDB struct{}
 
 func (nd *NoDB) Ping(ctx context.Context) error { return nil }
 
+func TestCreate_OriginalURLConflict(t *testing.T) {
+	mockSvc := NewMockUrlShortener(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	existingURL := "http://localhost:8080/HeZ1klEf"
+
+	mockSvc.EXPECT().
+		CreateShortUrl(mock.Anything, "https://google.com").
+		Return(existingURL, service.ErrOriginalURLConflict).
+		Once()
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/",
+		strings.NewReader("https://google.com"),
+	)
+
+	handler := New(mockSvc, log, new(NoDB))
+
+	rw := httptest.NewRecorder()
+
+	handler.Create(rw, req)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	assert.Equal(t, existingURL, string(body))
+}
+
+func TestShorten_OriginalURLConflict(t *testing.T) {
+	var (
+		method = http.MethodPost
+		target = "/api/shorten"
+		header = "application/json"
+	)
+
+	existingURL := "http://localhost:8080/HeZ1klEf"
+
+	mockSvc := NewMockUrlShortener(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().
+		CreateShortUrl(mock.Anything, "https://google.com").
+		Return(existingURL, service.ErrOriginalURLConflict).
+		Once()
+
+	request := ShortUrlRequest{
+		URL: "https://google.com",
+	}
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		method,
+		target,
+		bytes.NewReader(data),
+	)
+
+	req.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, log, new(NoDB))
+
+	rw := httptest.NewRecorder()
+
+	handler.Shorten(rw, req)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	assert.Equal(t, header, resp.Header.Get("Content-Type"))
+
+	var actual ShortUrlResponse
+
+	err = json.NewDecoder(resp.Body).Decode(&actual)
+	require.NoError(t, err)
+
+	expected := ShortUrlResponse{
+		Result: existingURL,
+	}
+
+	assert.Equal(t, expected, actual)
+}
+
 func TestShortenBatch_EmptyBatch(t *testing.T) {
 	var (
 		method = http.MethodPost
