@@ -90,6 +90,10 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 		}
 	}
 
+	if err := br.Close(); err != nil {
+		return fmt.Errorf("close batch: %w", err)
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("tx commit: %w", err)
 	}
