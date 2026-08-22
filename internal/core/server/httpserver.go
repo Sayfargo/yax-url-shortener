@@ -1,4 +1,4 @@
-package core_server
+package httpserver
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	config_server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
+	server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
 )
 
 type HTTPServer struct {
@@ -17,7 +17,7 @@ type HTTPServer struct {
 	log *slog.Logger
 }
 
-func New(handler http.Handler, cfg *config_server.Config, log *slog.Logger) *HTTPServer {
+func New(handler http.Handler, cfg *server.Config, log *slog.Logger) *HTTPServer {
 	return &HTTPServer{
 		server: &http.Server{
 			Addr:    cfg.Addr,

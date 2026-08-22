@@ -1,4 +1,4 @@
-package core_server
+package httpserver
 
 import (
 	"context"
@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	config_server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
+	server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHTTPServer_Run_Success(t *testing.T) {
 	discardLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	cfg := &config_server.Config{
+	cfg := &server.Config{
 		Addr: "127.0.0.1:0",
 	}
 
@@ -45,7 +45,7 @@ func TestHTTPServer_Run_Success(t *testing.T) {
 func TestHTTPServer_Run_InvalidAddr(t *testing.T) {
 	discardLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	cfg := &config_server.Config{
+	cfg := &server.Config{
 		Addr: "999.999.999.999:99999",
 	}
 	handler := http.NewServeMux()

@@ -1,4 +1,4 @@
-package core_storage_file
+package filestorage
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	config_storage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
+	cfgfs "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +29,7 @@ func assertURLsEqual(t *testing.T, expected, actual []model.ShortenedUrl) {
 func TestFileStorage_CloseClosed(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
-	cfg := &config_storage.Config{
+	cfg := &cfgfs.Config{
 		FilePath: tmpFile,
 	}
 
@@ -46,7 +46,7 @@ func TestFileStorage_CloseClosed(t *testing.T) {
 func TestFileStorage_Close(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
-	cfg := &config_storage.Config{
+	cfg := &cfgfs.Config{
 		FilePath: tmpFile,
 	}
 
@@ -69,7 +69,7 @@ func TestFileStorage_Close(t *testing.T) {
 func TestFileStorage_AppendAfterRead(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
-	cfg := &config_storage.Config{
+	cfg := &cfgfs.Config{
 		FilePath: tmpFile,
 	}
 
@@ -140,7 +140,7 @@ func TestFileStorage_InvalidPath(t *testing.T) {
 
 	file := ""
 
-	cfg := &config_storage.Config{
+	cfg := &cfgfs.Config{
 		FilePath: file,
 	}
 
@@ -153,7 +153,7 @@ func TestFileStorage_InvalidPath(t *testing.T) {
 func TestFileStorage_ReadURLs(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
-	cfg := &config_storage.Config{
+	cfg := &cfgfs.Config{
 		FilePath: tmpFile,
 	}
 
@@ -202,7 +202,7 @@ func TestFileStorage_WriteURL(t *testing.T) {
 
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
-	cfg := &config_storage.Config{
+	cfg := &cfgfs.Config{
 		FilePath: tmpFile,
 	}
 

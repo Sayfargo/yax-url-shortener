@@ -10,7 +10,7 @@ import (
 	"net/url"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
-	repository_errors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
+	repoerrors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -18,56 +18,6 @@ import (
 )
 
 const baseUrl = "https://base.com"
-
-func TestCreateShortUrl_OriginalURLConflict_GetExistingError(t *testing.T) {
-	repo := NewMockRepository(t)
-	generator := NewMockGenerator(t)
-
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	validate := validator.New()
-
-	service := New(
-		repo,
-		generator,
-		baseUrl,
-		validate,
-		log,
-	)
-
-	originalURL := "https://google.com"
-
-	generator.EXPECT().
-		Generate(alphabet, size).
-		Return("abc12345", nil)
-
-	repo.EXPECT().
-		Create(mock.Anything, mock.Anything).
-		Return(&repository_errors.OriginalUrlConflictError{
-			URL: originalURL,
-		})
-
-	repo.EXPECT().
-		GetByOriginalURL(mock.Anything, originalURL).
-		Return(
-			"",
-			repository_errors.ErrNotExists,
-		)
-
-	result, err := service.CreateShortUrl(
-		context.Background(),
-		originalURL,
-	)
-
-	require.Error(t, err)
-
-	assert.Empty(t, result)
-
-	assert.ErrorContains(
-		t,
-		err,
-		"get existing url after conflict",
-	)
-}
 
 func TestCreateShortUrl_OriginalURLConflict(t *testing.T) {
 	repo := NewMockRepository(t)
@@ -98,13 +48,9 @@ func TestCreateShortUrl_OriginalURLConflict(t *testing.T) {
 					u.ShortCode == "abc12345"
 			}),
 		).
-		Return(&repository_errors.OriginalUrlConflictError{
-			URL: originalURL,
+		Return(&repoerrors.OriginalUrlConflictError{
+			ShortCode: "existingCode",
 		})
-
-	repo.EXPECT().
-		GetByOriginalURL(mock.Anything, originalURL).
-		Return("existingCode", nil)
 
 	result, err := service.CreateShortUrl(
 		context.Background(),
@@ -172,7 +118,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 			return len(batch) == 1 &&
 				batch[0].ShortCode == "code1"
 		})).
-		Return(&repository_errors.BatchConflictError{
+		Return(&repoerrors.BatchConflictError{
 			Index: 0,
 		}).
 		Once()
@@ -187,7 +133,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 			return len(batch) == 1 &&
 				batch[0].ShortCode == "code2"
 		})).
-		Return(&repository_errors.BatchConflictError{
+		Return(&repoerrors.BatchConflictError{
 			Index: 0,
 		}).
 		Once()
@@ -202,7 +148,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 			return len(batch) == 1 &&
 				batch[0].ShortCode == "code3"
 		})).
-		Return(&repository_errors.BatchConflictError{
+		Return(&repoerrors.BatchConflictError{
 			Index: 0,
 		}).
 		Once()
@@ -253,7 +199,7 @@ func TestCreateUrlBatch_RetryOnBatchConflict(t *testing.T) {
 				batch[0].ShortCode == "code1" &&
 				batch[1].ShortCode == "code2"
 		})).
-		Return(&repository_errors.BatchConflictError{
+		Return(&repoerrors.BatchConflictError{
 			Index: 1,
 		}).
 		Once()
@@ -444,7 +390,7 @@ func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
 			nil,
 		),
 	)
-	mockRepo.EXPECT().Get(mock.Anything, mock.Anything).Return(mock.Anything, repository_errors.ErrNotExists)
+	mockRepo.EXPECT().Get(mock.Anything, mock.Anything).Return(mock.Anything, repoerrors.ErrNotExists)
 
 	svc := New(mockRepo, mockGen, baseUrl, validator.New(), logger)
 
@@ -477,7 +423,7 @@ func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 					u.OriginalUrl == "https://original.url"
 			}),
 		).
-		Return(repository_errors.ErrConflictShortCode).
+		Return(repoerrors.ErrConflictShortCode).
 		Once()
 	mockRepo.EXPECT().
 		Create(

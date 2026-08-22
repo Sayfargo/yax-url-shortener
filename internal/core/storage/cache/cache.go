@@ -1,4 +1,4 @@
-package core_storage_cache
+package cache
 
 import (
 	"errors"

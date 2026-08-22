@@ -3,8 +3,8 @@ package config
 import (
 	"testing"
 
-	config_db_postgres "github.com/Sayfargo/yax-url-shortener/internal/config/db/postgres"
-	config_storage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
+	postgres "github.com/Sayfargo/yax-url-shortener/internal/config/db/postgres"
+	filestorage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,24 +18,24 @@ func TestConfig_StorageType(t *testing.T) {
 		{
 			name: "StorageTypeDB",
 			cfg: &Config{
-				DB:          &config_db_postgres.Config{DBDsn: "postgres://localhost:5432/db"},
-				FileStorage: &config_storage.Config{FilePath: "/tmp/storage.json"},
+				DB:          &postgres.Config{DBDsn: "postgres://localhost:5432/db"},
+				FileStorage: &filestorage.Config{FilePath: "/tmp/storage.json"},
 			},
 			want: StorageTypeDB,
 		},
 		{
 			name: "StorageTypeFile",
 			cfg: &Config{
-				DB:          &config_db_postgres.Config{DBDsn: ""},
-				FileStorage: &config_storage.Config{FilePath: "/tmp/storage.json"},
+				DB:          &postgres.Config{DBDsn: ""},
+				FileStorage: &filestorage.Config{FilePath: "/tmp/storage.json"},
 			},
 			want: StorageTypeFile,
 		},
 		{
 			name: "StorageTypeMemory",
 			cfg: &Config{
-				DB:          &config_db_postgres.Config{DBDsn: ""},
-				FileStorage: &config_storage.Config{FilePath: ""},
+				DB:          &postgres.Config{DBDsn: ""},
+				FileStorage: &filestorage.Config{FilePath: ""},
 			},
 			want: StorageTypeMemory,
 		},

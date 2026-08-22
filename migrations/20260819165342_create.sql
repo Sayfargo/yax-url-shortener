@@ -6,4 +6,4 @@ CREATE TABLE IF NOT EXISTS shortened_urls (
 );
 
 -- +goose Down
-DROP TABLE IF EXISTS shorted_urls;
+DROP TABLE IF EXISTS shortened_urls;

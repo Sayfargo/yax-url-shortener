@@ -1,4 +1,4 @@
-package config_db_postgres
+package postgres
 
 import (
 	"flag"

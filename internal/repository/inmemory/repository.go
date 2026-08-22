@@ -1,4 +1,4 @@
-package repository_cache
+package inmemory
 
 import (
 	"context"
@@ -6,38 +6,22 @@ import (
 	"fmt"
 	"sync"
 
-	core_storage_cache "github.com/Sayfargo/yax-url-shortener/internal/core/storage/cache"
+	cache "github.com/Sayfargo/yax-url-shortener/internal/core/storage/cache"
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
-	repository_errors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
+	repoerrors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
 )
 
 type CacheRepository struct {
-	cache       *core_storage_cache.Cache
+	cache       *cache.Cache
 	originalMap map[string]string
 	mu          sync.RWMutex
 }
 
-func New(cache *core_storage_cache.Cache) *CacheRepository {
+func New(cache *cache.Cache) *CacheRepository {
 	return &CacheRepository{
 		cache:       cache,
 		originalMap: make(map[string]string),
 	}
-}
-
-func (r *CacheRepository) GetByOriginalURL(ctx context.Context, url string) (string, error) {
-	if ctx.Err() != nil {
-		return "", ctx.Err()
-	}
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	shortCode, ok := r.originalMap[url]
-	if !ok {
-		return "", repository_errors.ErrNotExists
-	}
-
-	return shortCode, nil
 }
 
 func (r *CacheRepository) Get(ctx context.Context, shortCode string) (string, error) {
@@ -51,15 +35,15 @@ func (r *CacheRepository) Get(ctx context.Context, shortCode string) (string, er
 
 	value, err := r.cache.Get(shortCode)
 	if err != nil {
-		if errors.Is(err, core_storage_cache.ErrNotFound) {
-			return "", repository_errors.ErrNotExists
+		if errors.Is(err, cache.ErrNotFound) {
+			return "", repoerrors.ErrNotExists
 		}
 		return "", fmt.Errorf("cache storage get err: %w", err)
 	}
 
 	shortenedUrl, ok := value.(model.ShortenedUrl)
 	if !ok {
-		return "", repository_errors.ErrUnexpectedType
+		return "", repoerrors.ErrUnexpectedType
 	}
 
 	return shortenedUrl.OriginalUrl, nil
@@ -73,11 +57,14 @@ func (r *CacheRepository) CreateBatch(ctx context.Context, shortenedUrls []model
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for _, shortenedUrl := range shortenedUrls {
+	seenShort := make(map[string]struct{})
 
-		if _, ok := r.originalMap[shortenedUrl.OriginalUrl]; ok {
-			return &repository_errors.OriginalUrlConflictError{
-				URL: shortenedUrl.OriginalUrl,
+	for i, shortenedUrl := range shortenedUrls {
+
+		if _, ok := seenShort[shortenedUrl.ShortCode]; ok {
+			return &repoerrors.BatchConflictError{
+				Index: i,
+				Err:   repoerrors.ErrConflictShortCode,
 			}
 		}
 
@@ -85,10 +72,15 @@ func (r *CacheRepository) CreateBatch(ctx context.Context, shortenedUrls []model
 
 		switch {
 		case err == nil:
-			return repository_errors.ErrConflictShortCode
-		case !errors.Is(err, core_storage_cache.ErrNotFound):
+			return &repoerrors.BatchConflictError{
+				Index: i,
+				Err:   repoerrors.ErrConflictShortCode,
+			}
+		case !errors.Is(err, cache.ErrNotFound):
 			return err
 		}
+
+		seenShort[shortenedUrl.ShortCode] = struct{}{}
 	}
 
 	for _, shortenedUrl := range shortenedUrls {
@@ -107,9 +99,9 @@ func (r *CacheRepository) Create(ctx context.Context, shortenedUrl model.Shorten
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, ok := r.originalMap[shortenedUrl.OriginalUrl]; ok {
-		return &repository_errors.OriginalUrlConflictError{
-			URL: shortenedUrl.OriginalUrl,
+	if v, ok := r.originalMap[shortenedUrl.OriginalUrl]; ok {
+		return &repoerrors.OriginalUrlConflictError{
+			ShortCode: v,
 		}
 	}
 
@@ -117,8 +109,8 @@ func (r *CacheRepository) Create(ctx context.Context, shortenedUrl model.Shorten
 
 	switch {
 	case err == nil:
-		return repository_errors.ErrConflictShortCode
-	case !errors.Is(err, core_storage_cache.ErrNotFound):
+		return repoerrors.ErrConflictShortCode
+	case !errors.Is(err, cache.ErrNotFound):
 		return err
 	}
 

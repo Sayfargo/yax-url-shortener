@@ -1,4 +1,4 @@
-package core_app
+package app
 
 import (
 	"context"
@@ -7,14 +7,14 @@ import (
 	"log/slog"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
-	core_db_postgres "github.com/Sayfargo/yax-url-shortener/internal/core/db/postgres"
-	core_server "github.com/Sayfargo/yax-url-shortener/internal/core/server"
-	core_storage_cache "github.com/Sayfargo/yax-url-shortener/internal/core/storage/cache"
-	core_storage_file "github.com/Sayfargo/yax-url-shortener/internal/core/storage/file"
-	core_transport_http_middleware "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/middleware"
+	dbpostgres "github.com/Sayfargo/yax-url-shortener/internal/core/db/postgres"
+	httpserver "github.com/Sayfargo/yax-url-shortener/internal/core/server"
+	cache "github.com/Sayfargo/yax-url-shortener/internal/core/storage/cache"
+	filestorage "github.com/Sayfargo/yax-url-shortener/internal/core/storage/file"
+	middleware "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/middleware"
 	"github.com/Sayfargo/yax-url-shortener/internal/handler"
-	repository_cache "github.com/Sayfargo/yax-url-shortener/internal/repository/cache"
-	repository_postgres "github.com/Sayfargo/yax-url-shortener/internal/repository/postgres"
+	inmemory "github.com/Sayfargo/yax-url-shortener/internal/repository/inmemory"
+	repopostgres "github.com/Sayfargo/yax-url-shortener/internal/repository/postgres"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
@@ -22,21 +22,21 @@ import (
 )
 
 type App struct {
-	Server  *core_server.HTTPServer
+	Server  *httpserver.HTTPServer
 	DB      *pgxpool.Pool
-	Storage *core_storage_file.FileStorage
+	Storage *filestorage.FileStorage
 }
 
 func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
 	// chi router/middlewares
 	rootRouter := chi.NewRouter()
-	rootRouter.Use(core_transport_http_middleware.Logging(log))
-	rootRouter.Use(core_transport_http_middleware.GzipCompress())
+	rootRouter.Use(middleware.Logging(log))
+	rootRouter.Use(middleware.GzipCompress())
 
 	var (
 		db          *pgxpool.Pool
-		fileStorage *core_storage_file.FileStorage
+		fileStorage *filestorage.FileStorage
 		activeRepo  service.Repository
 		err         error
 	)
@@ -48,24 +48,24 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 	*/
 	switch cfg.StorageType() {
 	case config.StorageTypeDB:
-		db, err = core_db_postgres.New(*cfg.DB, log)
+		db, err = dbpostgres.New(*cfg.DB, log)
 		if err != nil {
 			log.Error("failed to create db connection pool", "err", err)
 			return nil, fmt.Errorf("database initialize: %w", err)
 		}
-		activeRepo = repository_postgres.New(db)
+		activeRepo = repopostgres.New(db)
 
 	case config.StorageTypeFile:
-		fileStorage, err = core_storage_file.Init(cfg.FileStorage)
+		fileStorage, err = filestorage.Init(cfg.FileStorage)
 		if err != nil {
 			log.Error("failed to initialize file storage", "err", err)
 			return nil, fmt.Errorf("file storage init: %w", err)
 		}
 
-		cacheStorage := core_storage_cache.Init()
-		cr := repository_cache.New(cacheStorage)
+		cacheStorage := cache.Init()
+		cr := inmemory.New(cacheStorage)
 
-		fcr, err := repository_cache.NewFileCacheRepository(cr, fileStorage)
+		fcr, err := inmemory.NewFileCacheRepository(cr, fileStorage)
 		if err != nil {
 			log.Error("failed to initialize file cache repository", "err", err)
 			_ = fileStorage.Close()
@@ -75,15 +75,15 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		activeRepo = fcr
 
 	case config.StorageTypeMemory:
-		cacheStorage := core_storage_cache.Init()
-		activeRepo = repository_cache.New(cacheStorage)
+		cacheStorage := cache.Init()
+		activeRepo = inmemory.New(cacheStorage)
 	}
 
 	svc := service.New(activeRepo, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), log)
 	h := handler.New(svc, log, db)
 	h.Register(rootRouter)
 
-	httpServer := core_server.New(rootRouter, cfg.Server, log)
+	httpServer := httpserver.New(rootRouter, cfg.Server, log)
 
 	return &App{
 		Server:  httpServer,

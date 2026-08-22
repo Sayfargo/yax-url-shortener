@@ -10,6 +10,7 @@ import (
 
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UrlShortener interface {
@@ -21,20 +22,16 @@ type UrlShortener interface {
 type Handler struct {
 	service UrlShortener
 	log     *slog.Logger
-	db      DBHealthChecker
-}
-
-type DBHealthChecker interface {
-	Ping(ctx context.Context) error
+	pool    *pgxpool.Pool
 }
 
 const maxBodySize = 1024 * 1024
 
-func New(service UrlShortener, log *slog.Logger, db DBHealthChecker) *Handler {
+func New(service UrlShortener, log *slog.Logger, pool *pgxpool.Pool) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
-		db:      db,
+		pool:    pool,
 	}
 }
 
@@ -145,12 +142,12 @@ func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
 
-	if h.db == nil {
+	if h.pool == nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if err := h.db.Ping(r.Context()); err != nil {
+	if err := h.pool.Ping(r.Context()); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

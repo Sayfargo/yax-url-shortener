@@ -4,9 +4,9 @@ import (
 	"flag"
 	"fmt"
 
-	config_db_postgres "github.com/Sayfargo/yax-url-shortener/internal/config/db/postgres"
-	config_server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
-	config_storage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
+	postgres "github.com/Sayfargo/yax-url-shortener/internal/config/db/postgres"
+	server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
+	filestorage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
 )
 
 type StorageType string
@@ -18,18 +18,18 @@ const (
 )
 
 type Config struct {
-	Server      *config_server.Config
-	DB          *config_db_postgres.Config
-	FileStorage *config_storage.Config
+	Server      *server.Config
+	DB          *postgres.Config
+	FileStorage *filestorage.Config
 }
 
 func Load(args []string) (*Config, error) {
 
 	fs := flag.NewFlagSet("config", flag.ContinueOnError)
 
-	serverConfig := config_server.RegisterFlags(fs)
-	dbConfig := config_db_postgres.RegisterFlags(fs)
-	fileStorageConfig := config_storage.RegisterFlags(fs)
+	serverConfig := server.RegisterFlags(fs)
+	dbConfig := postgres.RegisterFlags(fs)
+	fileStorageConfig := filestorage.RegisterFlags(fs)
 
 	if err := fs.Parse(args); err != nil {
 		return nil, fmt.Errorf("failed to parse flags: %w", err)

@@ -1,4 +1,4 @@
-package core_transport_http_request
+package httprequest
 
 import (
 	"compress/gzip"

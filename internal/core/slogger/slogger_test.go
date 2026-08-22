@@ -1,4 +1,4 @@
-package core_slogger
+package slogger
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	config_slogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
+	cfgslogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,14 +15,14 @@ func TestSlogger_CreateLogs(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 
-	logger, closer, err := New(config_slogger.Config{
+	logger, closer, err := New(cfgslogger.Config{
 		Directory: dir,
-		Stdout:    config_slogger.StdoutConfig{Enabled: true, Format: config_slogger.FormatText, Writer: &buf},
-		Files: []config_slogger.FileConfig{
+		Stdout:    cfgslogger.StdoutConfig{Enabled: true, Format: cfgslogger.FormatText, Writer: &buf},
+		Files: []cfgslogger.FileConfig{
 			{
 				Name:    "app",
 				Enabled: true,
-				Format:  config_slogger.FormatText,
+				Format:  cfgslogger.FormatText,
 				Level:   slog.LevelInfo,
 			},
 		},
@@ -56,21 +56,21 @@ func TestSlogger_StdoutDisabled(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 
-	l, c, err := New(config_slogger.Config{
+	l, c, err := New(cfgslogger.Config{
 		Directory: dir,
 
-		Stdout: config_slogger.StdoutConfig{
+		Stdout: cfgslogger.StdoutConfig{
 			Enabled: false,
-			Format:  config_slogger.FormatText,
+			Format:  cfgslogger.FormatText,
 			Level:   slog.LevelInfo,
 			Writer:  &buf,
 		},
 
-		Files: []config_slogger.FileConfig{
+		Files: []cfgslogger.FileConfig{
 			{
 				Name:    "app",
 				Enabled: true,
-				Format:  config_slogger.FormatText,
+				Format:  cfgslogger.FormatText,
 				Level:   slog.LevelInfo,
 			},
 		},
@@ -93,21 +93,21 @@ func TestSlogger_FilesDisabled(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 
-	l, c, err := New(config_slogger.Config{
+	l, c, err := New(cfgslogger.Config{
 		Directory: dir,
 
-		Stdout: config_slogger.StdoutConfig{
+		Stdout: cfgslogger.StdoutConfig{
 			Enabled: true,
-			Format:  config_slogger.FormatText,
+			Format:  cfgslogger.FormatText,
 			Level:   slog.LevelInfo,
 			Writer:  &buf,
 		},
 
-		Files: []config_slogger.FileConfig{
+		Files: []cfgslogger.FileConfig{
 			{
 				Name:    "app",
 				Enabled: false,
-				Format:  config_slogger.FormatText,
+				Format:  cfgslogger.FormatText,
 				Level:   slog.LevelInfo,
 			},
 		},

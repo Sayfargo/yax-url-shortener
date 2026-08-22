@@ -1,4 +1,4 @@
-package config_slogger
+package slogger
 
 import (
 	"io"

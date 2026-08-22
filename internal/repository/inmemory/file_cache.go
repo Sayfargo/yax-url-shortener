@@ -1,20 +1,20 @@
-package repository_cache
+package inmemory
 
 import (
 	"context"
 	"fmt"
 
-	core_storage_file "github.com/Sayfargo/yax-url-shortener/internal/core/storage/file"
+	filestorage "github.com/Sayfargo/yax-url-shortener/internal/core/storage/file"
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
 )
 
 type FileCacheRepository struct {
 	*CacheRepository
 
-	fs *core_storage_file.FileStorage
+	fs *filestorage.FileStorage
 }
 
-func NewFileCacheRepository(cacheRepository *CacheRepository, fileStorage *core_storage_file.FileStorage) (*FileCacheRepository, error) {
+func NewFileCacheRepository(cacheRepository *CacheRepository, fileStorage *filestorage.FileStorage) (*FileCacheRepository, error) {
 
 	repo := &FileCacheRepository{
 		CacheRepository: cacheRepository,

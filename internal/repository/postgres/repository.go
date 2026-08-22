@@ -1,4 +1,4 @@
-package repository_postgres
+package postgres
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
-	repository_errors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
+	repoerrors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -23,26 +23,6 @@ func New(pool *pgxpool.Pool) *PostgresRepository {
 	}
 }
 
-func (pr *PostgresRepository) GetByOriginalURL(ctx context.Context, url string) (string, error) {
-
-	if ctx.Err() != nil {
-		return "", ctx.Err()
-	}
-
-	query := `SELECT short_code FROM shortened_urls WHERE original_url = $1`
-
-	var shortCode string
-
-	if err := pr.pool.QueryRow(ctx, query, url).Scan(&shortCode); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return "", repository_errors.ErrNotExists
-		}
-		return "", fmt.Errorf("query row: %w", err)
-	}
-
-	return shortCode, nil
-}
-
 func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string, error) {
 	if ctx.Err() != nil {
 		return "", ctx.Err()
@@ -55,7 +35,7 @@ func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string
 	err := pr.pool.QueryRow(ctx, query, shortCode).Scan(&origUrl)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", repository_errors.ErrNotExists
+			return "", repoerrors.ErrNotExists
 		}
 		return "", fmt.Errorf("query row: %w", err)
 	}
@@ -69,8 +49,16 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 		return ctx.Err()
 	}
 
-	batch := new(pgx.Batch)
+	tx, err := pr.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pool begin tx: %w", err)
+	}
 
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	batch := new(pgx.Batch)
 	query := `
 		INSERT INTO shortened_urls (uuid, short_code, original_url)
 		VALUES ($1, $2, $3)
@@ -79,8 +67,10 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 		batch.Queue(query, u.UUID, u.ShortCode, u.OriginalUrl)
 	}
 
-	br := pr.pool.SendBatch(ctx, batch)
-	defer br.Close()
+	br := tx.SendBatch(ctx, batch)
+	defer func() {
+		_ = br.Close()
+	}()
 
 	for i := range len(shortenedUrls) {
 		_, err := br.Exec()
@@ -89,17 +79,19 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 			var pgErr *pgconn.PgError
 
 			if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-
-				switch pgErr.ConstraintName {
-				case "shortened_urls_short_code_key":
-					return &repository_errors.BatchConflictError{
+				if pgErr.ConstraintName == "shortened_urls_short_code_key" {
+					return &repoerrors.BatchConflictError{
 						Index: i,
-						Err:   repository_errors.ErrConflictShortCode,
+						Err:   repoerrors.ErrConflictShortCode,
 					}
 				}
 			}
 			return fmt.Errorf("batch exec item: %d: %w", i, err)
 		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("tx commit: %w", err)
 	}
 
 	return nil
@@ -110,24 +102,44 @@ func (pr *PostgresRepository) Create(ctx context.Context, shortenedUrl model.Sho
 		return ctx.Err()
 	}
 
-	query := `INSERT INTO shortened_urls (uuid, short_code, original_url) VALUES ($1, $2, $3)`
+	query := `
+		INSERT INTO shortened_urls (uuid, short_code, original_url)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (original_url) DO UPDATE 
+		SET original_url = EXCLUDED.original_url
+		RETURNING short_code, xmax = 0;
+	`
 
-	_, err := pr.pool.Exec(ctx, query, shortenedUrl.UUID, shortenedUrl.ShortCode, shortenedUrl.OriginalUrl)
+	var (
+		shortCode string
+		inserted  bool
+	)
+
+	err := pr.pool.QueryRow(
+		ctx,
+		query,
+		shortenedUrl.UUID,
+		shortenedUrl.ShortCode,
+		shortenedUrl.OriginalUrl,
+	).Scan(&shortCode, &inserted)
+
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-			switch pgErr.ConstraintName {
 
-			case "shortened_urls_short_code_key":
-				return repository_errors.ErrConflictShortCode
+		if errors.As(err, &pgErr) &&
+			pgErr.Code == pgerrcode.UniqueViolation &&
+			pgErr.ConstraintName == "shortened_urls_short_code_key" {
 
-			case "idx_shortened_urls_original_url":
-				return &repository_errors.OriginalUrlConflictError{
-					URL: shortenedUrl.OriginalUrl,
-				}
-			}
+			return repoerrors.ErrConflictShortCode
 		}
-		return fmt.Errorf("pool exec: %w", err)
+
+		return err
+	}
+
+	if !inserted {
+		return &repoerrors.OriginalUrlConflictError{
+			ShortCode: shortCode,
+		}
 	}
 
 	return nil

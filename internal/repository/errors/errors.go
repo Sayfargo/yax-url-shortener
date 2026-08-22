@@ -1,4 +1,4 @@
-package repository_errors
+package repoerrors
 
 import (
 	"errors"
@@ -21,9 +21,9 @@ func (e *BatchConflictError) Error() string {
 }
 
 type OriginalUrlConflictError struct {
-	URL string
+	ShortCode string
 }
 
 func (o *OriginalUrlConflictError) Error() string {
-	return fmt.Sprintf("conflict at url: %s", o.URL)
+	return fmt.Sprintf("conflict at url: %s", o.ShortCode)
 }
