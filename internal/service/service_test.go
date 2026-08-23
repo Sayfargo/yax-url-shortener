@@ -10,7 +10,7 @@ import (
 	"net/url"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
-	repoerrors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
+	urlrepo "github.com/Sayfargo/yax-url-shortener/internal/repository/url"
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -20,7 +20,7 @@ import (
 const baseUrl = "https://base.com"
 
 func TestCreateShortUrl_OriginalURLConflict(t *testing.T) {
-	repo := NewMockRepository(t)
+	repo := NewMockURLRepository(t)
 	generator := NewMockGenerator(t)
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -48,7 +48,7 @@ func TestCreateShortUrl_OriginalURLConflict(t *testing.T) {
 					u.ShortCode == "abc12345"
 			}),
 		).
-		Return(&repoerrors.OriginalUrlConflictError{
+		Return(&urlrepo.OriginalUrlConflictError{
 			ShortCode: "existingCode",
 		})
 
@@ -69,7 +69,7 @@ func TestCreateShortUrl_OriginalURLConflict(t *testing.T) {
 func TestCreateUrlBatch_EmptyBatch(t *testing.T) {
 	req := []CreateUrlBatchRequest{}
 
-	repo := NewMockRepository(t)
+	repo := NewMockURLRepository(t)
 	generator := NewMockGenerator(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
@@ -96,7 +96,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 		},
 	}
 
-	repo := NewMockRepository(t)
+	repo := NewMockURLRepository(t)
 	generator := NewMockGenerator(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
@@ -118,7 +118,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 			return len(batch) == 1 &&
 				batch[0].ShortCode == "code1"
 		})).
-		Return(&repoerrors.BatchConflictError{
+		Return(&urlrepo.BatchConflictError{
 			Index: 0,
 		}).
 		Once()
@@ -133,7 +133,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 			return len(batch) == 1 &&
 				batch[0].ShortCode == "code2"
 		})).
-		Return(&repoerrors.BatchConflictError{
+		Return(&urlrepo.BatchConflictError{
 			Index: 0,
 		}).
 		Once()
@@ -148,7 +148,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 			return len(batch) == 1 &&
 				batch[0].ShortCode == "code3"
 		})).
-		Return(&repoerrors.BatchConflictError{
+		Return(&urlrepo.BatchConflictError{
 			Index: 0,
 		}).
 		Once()
@@ -171,7 +171,7 @@ func TestCreateUrlBatch_RetryOnBatchConflict(t *testing.T) {
 		},
 	}
 
-	repo := NewMockRepository(t)
+	repo := NewMockURLRepository(t)
 	generator := NewMockGenerator(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
@@ -199,7 +199,7 @@ func TestCreateUrlBatch_RetryOnBatchConflict(t *testing.T) {
 				batch[0].ShortCode == "code1" &&
 				batch[1].ShortCode == "code2"
 		})).
-		Return(&repoerrors.BatchConflictError{
+		Return(&urlrepo.BatchConflictError{
 			Index: 1,
 		}).
 		Once()
@@ -244,7 +244,7 @@ func TestCreateUrlBatch_RepositoryError(t *testing.T) {
 		},
 	}
 
-	mockRepo := NewMockRepository(t)
+	mockRepo := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
@@ -265,7 +265,7 @@ func TestCreateUrlBatch_GeneratorError(t *testing.T) {
 		},
 	}
 
-	mockRepo := NewMockRepository(t)
+	mockRepo := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
@@ -284,7 +284,7 @@ func TestCreateUrlBatch_InvalidURL(t *testing.T) {
 		},
 	}
 
-	mockRepo := NewMockRepository(t)
+	mockRepo := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
@@ -307,7 +307,7 @@ func TestCreateUrlBatch_Success(t *testing.T) {
 		},
 	}
 
-	mockRepo := NewMockRepository(t)
+	mockRepo := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
@@ -367,7 +367,7 @@ func TestCreateShortUrl_IncorrectUrl(t *testing.T) {
 		),
 	)
 
-	mockRepo := NewMockRepository(t)
+	mockRepo := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 
 	for _, test := range testcases {
@@ -382,7 +382,7 @@ func TestCreateShortUrl_IncorrectUrl(t *testing.T) {
 }
 
 func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
-	mockRepo := NewMockRepository(t)
+	mockRepo := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 	logger := slog.New(
 		slog.NewTextHandler(
@@ -390,7 +390,7 @@ func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
 			nil,
 		),
 	)
-	mockRepo.EXPECT().Get(mock.Anything, mock.Anything).Return(mock.Anything, repoerrors.ErrNotExists)
+	mockRepo.EXPECT().Get(mock.Anything, mock.Anything).Return(mock.Anything, urlrepo.ErrNotExists)
 
 	svc := New(mockRepo, mockGen, baseUrl, validator.New(), logger)
 
@@ -401,7 +401,7 @@ func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
 
 func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 
-	mockRepo := NewMockRepository(t)
+	mockRepo := NewMockURLRepository(t)
 	mockGenerator := NewMockGenerator(t)
 	logger := slog.New(
 		slog.NewTextHandler(
@@ -423,7 +423,7 @@ func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 					u.OriginalUrl == "https://original.url"
 			}),
 		).
-		Return(repoerrors.ErrConflictShortCode).
+		Return(urlrepo.ErrConflictShortCode).
 		Once()
 	mockRepo.EXPECT().
 		Create(
@@ -451,7 +451,7 @@ func TestGetOriginalUrl_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	mockRepo := NewMockRepository(t)
+	mockRepo := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 	logger := slog.New(
 		slog.NewTextHandler(
@@ -471,7 +471,7 @@ func TestCreateShortUrl_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	mockRepo := NewMockRepository(t)
+	mockRepo := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 	logger := slog.New(
 		slog.NewTextHandler(
@@ -495,7 +495,7 @@ func TestGetOriginalUrl_Success(t *testing.T) {
 	// Params
 	expectedUrl := "https://google.com"
 
-	mockRep := NewMockRepository(t)
+	mockRep := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 	logger := slog.New(
 		slog.NewTextHandler(
@@ -519,7 +519,7 @@ func TestCreateShortUrl_Success(t *testing.T) {
 	// Params
 	testUrl := "https://google.com"
 
-	mockRep := NewMockRepository(t)
+	mockRep := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 	logger := slog.New(
 		slog.NewTextHandler(

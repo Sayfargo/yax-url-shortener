@@ -1,10 +1,10 @@
-package inmemory
+package url
 
 import (
 	"context"
 	"fmt"
 
-	filestorage "github.com/Sayfargo/yax-url-shortener/internal/core/storage/file"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/filestorage"
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
 )
 
@@ -14,7 +14,7 @@ type FileCacheRepository struct {
 	fs *filestorage.FileStorage
 }
 
-func NewFileCacheRepository(cacheRepository *CacheRepository, fileStorage *filestorage.FileStorage) (*FileCacheRepository, error) {
+func NewFileInMemoryRepository(cacheRepository *CacheRepository, fileStorage *filestorage.FileStorage) (*FileCacheRepository, error) {
 
 	repo := &FileCacheRepository{
 		CacheRepository: cacheRepository,
@@ -58,7 +58,7 @@ func (r *FileCacheRepository) restoreCache() error {
 	}
 
 	for _, shortenedUrl := range shortenedUrls {
-		r.cache.Set(shortenedUrl.ShortCode, shortenedUrl)
+		r.c.Set(shortenedUrl.ShortCode, shortenedUrl)
 	}
 
 	return nil

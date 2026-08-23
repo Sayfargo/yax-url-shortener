@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	cfgslogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,14 +14,14 @@ func TestSlogger_CreateLogs(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 
-	logger, closer, err := New(cfgslogger.Config{
+	logger, closer, err := New(Config{
 		Directory: dir,
-		Stdout:    cfgslogger.StdoutConfig{Enabled: true, Format: cfgslogger.FormatText, Writer: &buf},
-		Files: []cfgslogger.FileConfig{
+		Stdout:    StdoutConfig{Enabled: true, Format: FormatText, Writer: &buf},
+		Files: []FileConfig{
 			{
 				Name:    "app",
 				Enabled: true,
-				Format:  cfgslogger.FormatText,
+				Format:  FormatText,
 				Level:   slog.LevelInfo,
 			},
 		},
@@ -56,21 +55,21 @@ func TestSlogger_StdoutDisabled(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 
-	l, c, err := New(cfgslogger.Config{
+	l, c, err := New(Config{
 		Directory: dir,
 
-		Stdout: cfgslogger.StdoutConfig{
+		Stdout: StdoutConfig{
 			Enabled: false,
-			Format:  cfgslogger.FormatText,
+			Format:  FormatText,
 			Level:   slog.LevelInfo,
 			Writer:  &buf,
 		},
 
-		Files: []cfgslogger.FileConfig{
+		Files: []FileConfig{
 			{
 				Name:    "app",
 				Enabled: true,
-				Format:  cfgslogger.FormatText,
+				Format:  FormatText,
 				Level:   slog.LevelInfo,
 			},
 		},
@@ -93,21 +92,21 @@ func TestSlogger_FilesDisabled(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 
-	l, c, err := New(cfgslogger.Config{
+	l, c, err := New(Config{
 		Directory: dir,
 
-		Stdout: cfgslogger.StdoutConfig{
+		Stdout: StdoutConfig{
 			Enabled: true,
-			Format:  cfgslogger.FormatText,
+			Format:  FormatText,
 			Level:   slog.LevelInfo,
 			Writer:  &buf,
 		},
 
-		Files: []cfgslogger.FileConfig{
+		Files: []FileConfig{
 			{
 				Name:    "app",
 				Enabled: false,
-				Format:  cfgslogger.FormatText,
+				Format:  FormatText,
 				Level:   slog.LevelInfo,
 			},
 		},

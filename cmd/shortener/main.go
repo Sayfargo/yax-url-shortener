@@ -8,9 +8,8 @@ import (
 	"syscall"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
-	cfgslogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
-	app "github.com/Sayfargo/yax-url-shortener/internal/core/app"
-	slogger "github.com/Sayfargo/yax-url-shortener/internal/core/slogger"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/app"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/slogger"
 )
 
 func main() {
@@ -25,11 +24,11 @@ func main() {
 	}
 
 	// logger config
-	logConfig := cfgslogger.Config{
+	logConfig := slogger.Config{
 		Directory: "./log",
-		Stdout: cfgslogger.StdoutConfig{
+		Stdout: slogger.StdoutConfig{
 			Enabled: true,
-			Format:  cfgslogger.FormatText,
+			Format:  slogger.FormatText,
 			Writer:  os.Stdout,
 		},
 	}

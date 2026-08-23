@@ -4,9 +4,9 @@ import (
 	"flag"
 	"fmt"
 
-	postgres "github.com/Sayfargo/yax-url-shortener/internal/config/db/postgres"
-	server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
-	filestorage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/db/postgres"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/filestorage"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/httpserver"
 )
 
 type StorageType string
@@ -18,7 +18,7 @@ const (
 )
 
 type Config struct {
-	Server      *server.Config
+	Server      *httpserver.Config
 	DB          *postgres.Config
 	FileStorage *filestorage.Config
 }
@@ -27,7 +27,7 @@ func Load(args []string) (*Config, error) {
 
 	fs := flag.NewFlagSet("config", flag.ContinueOnError)
 
-	serverConfig := server.RegisterFlags(fs)
+	serverConfig := httpserver.RegisterFlags(fs)
 	dbConfig := postgres.RegisterFlags(fs)
 	fileStorageConfig := filestorage.RegisterFlags(fs)
 

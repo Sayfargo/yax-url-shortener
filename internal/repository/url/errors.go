@@ -1,4 +1,4 @@
-package repoerrors
+package url
 
 import (
 	"errors"

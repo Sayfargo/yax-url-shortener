@@ -3,8 +3,8 @@ package config
 import (
 	"testing"
 
-	postgres "github.com/Sayfargo/yax-url-shortener/internal/config/db/postgres"
-	filestorage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/db/postgres"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/filestorage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

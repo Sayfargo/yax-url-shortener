@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 
-	postgres "github.com/Sayfargo/yax-url-shortener/internal/config/db/postgres"
 	"github.com/Sayfargo/yax-url-shortener/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
 
-func New(cfg postgres.Config, log *slog.Logger) (*pgxpool.Pool, error) {
+func New(cfg Config, log *slog.Logger) (*pgxpool.Pool, error) {
 
 	log.Info(
 		"connecting to database",

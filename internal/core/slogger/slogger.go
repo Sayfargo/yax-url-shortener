@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	cfgslogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
 )
 
 type Closer struct {
@@ -22,7 +20,7 @@ var (
 	ErrNoLevelOrDirectory = errors.New("missing directory or level")
 )
 
-func New(cfg cfgslogger.Config) (*slog.Logger, *Closer, error) {
+func New(cfg Config) (*slog.Logger, *Closer, error) {
 
 	handler, closer, err := buildHandler(cfg)
 
@@ -34,7 +32,7 @@ func New(cfg cfgslogger.Config) (*slog.Logger, *Closer, error) {
 }
 
 // MustNew либо создаст экземпляр либо вызовет panic в случае ошибки
-func MustNew(cfg cfgslogger.Config) (*slog.Logger, *Closer) {
+func MustNew(cfg Config) (*slog.Logger, *Closer) {
 	slogger, closer, err := New(cfg)
 	if err != nil {
 		panic(err)
@@ -42,7 +40,7 @@ func MustNew(cfg cfgslogger.Config) (*slog.Logger, *Closer) {
 	return slogger, closer
 }
 
-func buildHandler(cfg cfgslogger.Config) (handler slog.Handler, closer *Closer, err error) {
+func buildHandler(cfg Config) (handler slog.Handler, closer *Closer, err error) {
 
 	handlers := make([]slog.Handler, 0)
 

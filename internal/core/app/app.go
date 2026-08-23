@@ -7,14 +7,13 @@ import (
 	"log/slog"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
-	dbpostgres "github.com/Sayfargo/yax-url-shortener/internal/core/db/postgres"
-	httpserver "github.com/Sayfargo/yax-url-shortener/internal/core/server"
-	cache "github.com/Sayfargo/yax-url-shortener/internal/core/storage/cache"
-	filestorage "github.com/Sayfargo/yax-url-shortener/internal/core/storage/file"
-	middleware "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/middleware"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/cache"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/db/postgres"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/filestorage"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/httpserver"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/middleware"
 	"github.com/Sayfargo/yax-url-shortener/internal/handler"
-	inmemory "github.com/Sayfargo/yax-url-shortener/internal/repository/inmemory"
-	repopostgres "github.com/Sayfargo/yax-url-shortener/internal/repository/postgres"
+	"github.com/Sayfargo/yax-url-shortener/internal/repository/url"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
@@ -37,7 +36,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 	var (
 		db          *pgxpool.Pool
 		fileStorage *filestorage.FileStorage
-		activeRepo  service.Repository
+		activeRepo  service.URLRepository
 		err         error
 	)
 	/*
@@ -48,12 +47,12 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 	*/
 	switch cfg.StorageType() {
 	case config.StorageTypeDB:
-		db, err = dbpostgres.New(*cfg.DB, log)
+		db, err = postgres.New(*cfg.DB, log)
 		if err != nil {
 			log.Error("failed to create db connection pool", "err", err)
 			return nil, fmt.Errorf("database initialize: %w", err)
 		}
-		activeRepo = repopostgres.New(db)
+		activeRepo = url.NewPgRepo(db)
 
 	case config.StorageTypeFile:
 		fileStorage, err = filestorage.Init(cfg.FileStorage)
@@ -63,9 +62,9 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		}
 
 		cacheStorage := cache.Init()
-		cr := inmemory.New(cacheStorage)
+		cr := url.NewInMemoryRepo(cacheStorage)
 
-		fcr, err := inmemory.NewFileCacheRepository(cr, fileStorage)
+		fcr, err := url.NewFileInMemoryRepository(cr, fileStorage)
 		if err != nil {
 			log.Error("failed to initialize file cache repository", "err", err)
 			_ = fileStorage.Close()
@@ -76,7 +75,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
 	case config.StorageTypeMemory:
 		cacheStorage := cache.Init()
-		activeRepo = inmemory.New(cacheStorage)
+		activeRepo = url.NewInMemoryRepo(cacheStorage)
 	}
 
 	svc := service.New(activeRepo, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), log)

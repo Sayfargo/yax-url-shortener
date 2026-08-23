@@ -1,4 +1,4 @@
-package postgres
+package url
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
-	repoerrors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -17,7 +16,7 @@ type PostgresRepository struct {
 	pool *pgxpool.Pool
 }
 
-func New(pool *pgxpool.Pool) *PostgresRepository {
+func NewPgRepo(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{
 		pool: pool,
 	}
@@ -35,7 +34,7 @@ func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string
 	err := pr.pool.QueryRow(ctx, query, shortCode).Scan(&origUrl)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", repoerrors.ErrNotExists
+			return "", ErrNotExists
 		}
 		return "", fmt.Errorf("query row: %w", err)
 	}
@@ -80,9 +79,9 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 
 			if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
 				if pgErr.ConstraintName == "shortened_urls_short_code_key" {
-					return &repoerrors.BatchConflictError{
+					return &BatchConflictError{
 						Index: i,
-						Err:   repoerrors.ErrConflictShortCode,
+						Err:   ErrConflictShortCode,
 					}
 				}
 			}
@@ -134,14 +133,14 @@ func (pr *PostgresRepository) Create(ctx context.Context, shortenedUrl model.Sho
 			pgErr.Code == pgerrcode.UniqueViolation &&
 			pgErr.ConstraintName == "shortened_urls_short_code_key" {
 
-			return repoerrors.ErrConflictShortCode
+			return ErrConflictShortCode
 		}
 
 		return err
 	}
 
 	if !inserted {
-		return &repoerrors.OriginalUrlConflictError{
+		return &OriginalUrlConflictError{
 			ShortCode: shortCode,
 		}
 	}

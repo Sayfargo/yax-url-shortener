@@ -7,13 +7,13 @@ import (
 	"log/slog"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
-	repoerrors "github.com/Sayfargo/yax-url-shortener/internal/repository/errors"
+	urlrepo "github.com/Sayfargo/yax-url-shortener/internal/repository/url"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-type Repository interface {
+type URLRepository interface {
 	Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error
 	CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error
 	Get(ctx context.Context, shortCode string) (string, error)
@@ -27,7 +27,7 @@ type GoNanoIDGenerator struct{}
 
 type UrlShortenerService struct {
 	// Хранит в IMC
-	repo Repository
+	repo URLRepository
 
 	generator Generator
 	log       *slog.Logger
@@ -38,7 +38,7 @@ type UrlShortenerService struct {
 }
 
 func New(
-	repo Repository,
+	repo URLRepository,
 	generator Generator,
 	baseURL string,
 	validate *validator.Validate,
@@ -119,7 +119,7 @@ func (s *UrlShortenerService) CreateUrlBatch(ctx context.Context, req []CreateUr
 	for attempt := 0; attempt < 3; attempt++ {
 		err := s.repo.CreateBatch(ctx, shortenedUrls)
 
-		var batchErr *repoerrors.BatchConflictError
+		var batchErr *urlrepo.BatchConflictError
 
 		switch {
 		case err == nil:
@@ -161,9 +161,9 @@ func (s *UrlShortenerService) GetOriginalUrl(ctx context.Context, shortCode stri
 
 	originalUrl, err := s.repo.Get(ctx, shortCode)
 	if err != nil {
-		if errors.Is(err, repoerrors.ErrNotExists) {
+		if errors.Is(err, urlrepo.ErrNotExists) {
 			return "", ErrUrlDoesNotExists
-		} else if errors.Is(err, repoerrors.ErrUnexpectedType) {
+		} else if errors.Is(err, urlrepo.ErrUnexpectedType) {
 			return "", ErrCorruptedData
 		}
 		return "", fmt.Errorf("repository get err: %w", err)
@@ -197,14 +197,14 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 
 		err = s.repo.Create(ctx, shortenedUrl)
 
-		var origUrlConflictErr *repoerrors.OriginalUrlConflictError
+		var origUrlConflictErr *urlrepo.OriginalUrlConflictError
 
 		switch {
 		case err == nil:
 
 			return s.buildShortedUrl(shortCode), nil
 
-		case errors.Is(err, repoerrors.ErrConflictShortCode):
+		case errors.Is(err, urlrepo.ErrConflictShortCode):
 
 			s.log.Info(
 				"short code collision occurred, retrying",

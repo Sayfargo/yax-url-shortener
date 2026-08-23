@@ -8,26 +8,25 @@ import (
 	"testing"
 	"time"
 
-	server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHTTPServer_Run_Success(t *testing.T) {
 	discardLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	cfg := &server.Config{
+	cfg := &Config{
 		Addr: "127.0.0.1:0",
 	}
 
 	handler := http.NewServeMux()
-	server := New(handler, cfg, discardLogger)
+	httpServer := New(handler, cfg, discardLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	errChan := make(chan error, 1)
 
 	go func() {
-		errChan <- server.Run(ctx)
+		errChan <- httpServer.Run(ctx)
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -45,15 +44,15 @@ func TestHTTPServer_Run_Success(t *testing.T) {
 func TestHTTPServer_Run_InvalidAddr(t *testing.T) {
 	discardLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	cfg := &server.Config{
+	cfg := &Config{
 		Addr: "999.999.999.999:99999",
 	}
 	handler := http.NewServeMux()
 
-	server := New(handler, cfg, discardLogger)
+	httpServer := New(handler, cfg, discardLogger)
 	ctx := context.Background()
 
-	err := server.Run(ctx)
+	err := httpServer.Run(ctx)
 	require.Errorf(t, err, "expected error due to invalid address, but got nil")
 
 }
