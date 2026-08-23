@@ -7,14 +7,15 @@ import (
 	"log/slog"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
-	repository_cache "github.com/Sayfargo/yax-url-shortener/internal/repository/cache"
+	urlrepo "github.com/Sayfargo/yax-url-shortener/internal/repository/url"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
-type Repository interface {
+type URLRepository interface {
 	Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error
+	CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error
 	Get(ctx context.Context, shortCode string) (string, error)
 }
 
@@ -26,7 +27,7 @@ type GoNanoIDGenerator struct{}
 
 type UrlShortenerService struct {
 	// Хранит в IMC
-	cacheRepo Repository
+	repo URLRepository
 
 	generator Generator
 	log       *slog.Logger
@@ -37,14 +38,14 @@ type UrlShortenerService struct {
 }
 
 func New(
-	cacheRepo Repository,
+	repo URLRepository,
 	generator Generator,
 	baseURL string,
 	validate *validator.Validate,
 	log *slog.Logger,
 ) *UrlShortenerService {
 	return &UrlShortenerService{
-		cacheRepo: cacheRepo,
+		repo:      repo,
 		generator: generator,
 		validate:  validate,
 		baseURL:   baseURL,
@@ -57,6 +58,8 @@ var (
 	ErrShortCodeCollisionLimitExceeded = errors.New("failed to generate short code after all attempts")
 	ErrIncorrectUrl                    = errors.New("incorrect url")
 	ErrCorruptedData                   = errors.New("cached data is corrupted or invalid")
+	ErrEmptyBatch                      = errors.New("empty batch")
+	ErrOriginalURLConflict             = errors.New("original url conflict")
 )
 
 const (
@@ -64,16 +67,103 @@ const (
 	size     = 8
 )
 
+type CreateUrlBatchRequest struct {
+	CorrelationID string
+	OriginalURL   string
+}
+
+type CreateUrlBatchResponse struct {
+	CorrelationID string
+	ShortURL      string
+}
+
+func (s *UrlShortenerService) CreateUrlBatch(ctx context.Context, req []CreateUrlBatchRequest) ([]CreateUrlBatchResponse, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	if len(req) == 0 {
+		return nil, ErrEmptyBatch
+	}
+
+	shortenedUrls := make([]model.ShortenedUrl, len(req))
+	resp := make([]CreateUrlBatchResponse, len(req))
+
+	for i, item := range req {
+		if err := s.validate.Var(item.OriginalURL, "http_url"); err != nil {
+			return nil, fmt.Errorf(
+				"got incorrect url on row #%d with id %s: %w",
+				i+1, item.CorrelationID,
+				ErrIncorrectUrl,
+			)
+		}
+
+		shortCode, err := s.generator.Generate(alphabet, size)
+		if err != nil {
+			return nil, fmt.Errorf("generator generate: %w", err)
+
+		}
+
+		shortenedUrls[i] = model.ShortenedUrl{
+			UUID:        uuid.New(),
+			ShortCode:   shortCode,
+			OriginalUrl: item.OriginalURL,
+		}
+
+		resp[i] = CreateUrlBatchResponse{
+			CorrelationID: item.CorrelationID,
+			ShortURL:      s.buildShortedUrl(shortCode),
+		}
+	}
+
+	for attempt := 0; attempt < 3; attempt++ {
+		err := s.repo.CreateBatch(ctx, shortenedUrls)
+
+		var batchErr *urlrepo.BatchConflictError
+
+		switch {
+		case err == nil:
+			return resp, nil
+		case errors.As(err, &batchErr):
+
+			if attempt == 2 {
+				break
+			}
+
+			s.log.Info(
+				"short code collision occurred, retrying",
+				"url", shortenedUrls[batchErr.Index].OriginalUrl,
+				"code", shortenedUrls[batchErr.Index].ShortCode,
+				"attempt", attempt+1,
+			)
+
+			shortCode, err := s.generator.Generate(alphabet, size)
+			if err != nil {
+				return nil, fmt.Errorf("generator generate: %w", err)
+			}
+
+			shortenedUrls[batchErr.Index].ShortCode = shortCode
+			resp[batchErr.Index].ShortURL = s.buildShortedUrl(shortCode)
+
+			continue
+		default:
+			return nil, fmt.Errorf("repository create: %w", err)
+		}
+	}
+
+	return nil, ErrShortCodeCollisionLimitExceeded
+}
+
 func (s *UrlShortenerService) GetOriginalUrl(ctx context.Context, shortCode string) (string, error) {
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
 
-	originalUrl, err := s.cacheRepo.Get(ctx, shortCode)
+	originalUrl, err := s.repo.Get(ctx, shortCode)
 	if err != nil {
-		if errors.Is(err, repository_cache.ErrNotExists) {
+		if errors.Is(err, urlrepo.ErrNotExists) {
 			return "", ErrUrlDoesNotExists
-		} else if errors.Is(err, repository_cache.ErrUnexpectedType) {
+		} else if errors.Is(err, urlrepo.ErrUnexpectedType) {
 			return "", ErrCorruptedData
 		}
 		return "", fmt.Errorf("repository get err: %w", err)
@@ -100,19 +190,21 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 		}
 
 		shortenedUrl := model.ShortenedUrl{
-			UUID:        uuid.New().String(),
+			UUID:        uuid.New(),
 			ShortCode:   shortCode,
 			OriginalUrl: url,
 		}
 
-		err = s.cacheRepo.Create(ctx, shortenedUrl)
+		err = s.repo.Create(ctx, shortenedUrl)
+
+		var origUrlConflictErr *urlrepo.OriginalUrlConflictError
 
 		switch {
 		case err == nil:
 
 			return s.buildShortedUrl(shortCode), nil
 
-		case errors.Is(err, repository_cache.ErrAlreadyExists):
+		case errors.Is(err, urlrepo.ErrConflictShortCode):
 
 			s.log.Info(
 				"short code collision occurred, retrying",
@@ -120,8 +212,10 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 				"code", shortCode,
 				"attempt", attempt+1,
 			)
-
 			continue
+		case errors.As(err, &origUrlConflictErr):
+
+			return s.buildShortedUrl(origUrlConflictErr.ShortCode), ErrOriginalURLConflict
 
 		default:
 

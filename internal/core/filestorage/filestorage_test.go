@@ -1,4 +1,4 @@
-package core_storage_file
+package filestorage
 
 import (
 	"bufio"
@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	config_storage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ func assertURLsEqual(t *testing.T, expected, actual []model.ShortenedUrl) {
 func TestFileStorage_CloseClosed(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
-	cfg := &config_storage.Config{
+	cfg := &Config{
 		FilePath: tmpFile,
 	}
 
@@ -45,7 +45,7 @@ func TestFileStorage_CloseClosed(t *testing.T) {
 func TestFileStorage_Close(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
-	cfg := &config_storage.Config{
+	cfg := &Config{
 		FilePath: tmpFile,
 	}
 
@@ -56,7 +56,7 @@ func TestFileStorage_Close(t *testing.T) {
 	require.NoError(t, err)
 
 	shortenedUrl := model.ShortenedUrl{
-		UUID:        "1",
+		UUID:        uuid.New(),
 		ShortCode:   "4rSPg8ap",
 		OriginalUrl: "http://yandex.ru",
 	}
@@ -68,7 +68,7 @@ func TestFileStorage_Close(t *testing.T) {
 func TestFileStorage_AppendAfterRead(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
-	cfg := &config_storage.Config{
+	cfg := &Config{
 		FilePath: tmpFile,
 	}
 
@@ -82,17 +82,17 @@ func TestFileStorage_AppendAfterRead(t *testing.T) {
 
 	shortenedUrls := []model.ShortenedUrl{
 		{
-			UUID:        "1",
+			UUID:        uuid.New(),
 			ShortCode:   "4rSPg8ap",
 			OriginalUrl: "http://yandex.ru",
 		},
 		{
-			UUID:        "2",
+			UUID:        uuid.New(),
 			ShortCode:   "edVPg3ks",
 			OriginalUrl: "http://ya.ru",
 		},
 		{
-			UUID:        "3",
+			UUID:        uuid.New(),
 			ShortCode:   "dG56Hqxm",
 			OriginalUrl: "http://practicum.yandex.ru",
 		},
@@ -115,7 +115,7 @@ func TestFileStorage_AppendAfterRead(t *testing.T) {
 	assertURLsEqual(t, shortenedUrls, results)
 
 	newRecord := model.ShortenedUrl{
-		UUID:        "4",
+		UUID:        uuid.New(),
 		ShortCode:   "v256HZ3m",
 		OriginalUrl: "https://google.com",
 	}
@@ -139,7 +139,7 @@ func TestFileStorage_InvalidPath(t *testing.T) {
 
 	file := ""
 
-	cfg := &config_storage.Config{
+	cfg := &Config{
 		FilePath: file,
 	}
 
@@ -152,7 +152,7 @@ func TestFileStorage_InvalidPath(t *testing.T) {
 func TestFileStorage_ReadURLs(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
-	cfg := &config_storage.Config{
+	cfg := &Config{
 		FilePath: tmpFile,
 	}
 
@@ -166,17 +166,17 @@ func TestFileStorage_ReadURLs(t *testing.T) {
 
 	shortenedUrls := []model.ShortenedUrl{
 		{
-			UUID:        "1",
+			UUID:        uuid.New(),
 			ShortCode:   "4rSPg8ap",
 			OriginalUrl: "http://yandex.ru",
 		},
 		{
-			UUID:        "2",
+			UUID:        uuid.New(),
 			ShortCode:   "edVPg3ks",
 			OriginalUrl: "http://ya.ru",
 		},
 		{
-			UUID:        "3",
+			UUID:        uuid.New(),
 			ShortCode:   "dG56Hqxm",
 			OriginalUrl: "http://practicum.yandex.ru",
 		},
@@ -201,7 +201,7 @@ func TestFileStorage_WriteURL(t *testing.T) {
 
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
-	cfg := &config_storage.Config{
+	cfg := &Config{
 		FilePath: tmpFile,
 	}
 
@@ -215,17 +215,17 @@ func TestFileStorage_WriteURL(t *testing.T) {
 
 	shortenedUrls := []model.ShortenedUrl{
 		{
-			UUID:        "1",
+			UUID:        uuid.New(),
 			ShortCode:   "4rSPg8ap",
 			OriginalUrl: "http://yandex.ru",
 		},
 		{
-			UUID:        "2",
+			UUID:        uuid.New(),
 			ShortCode:   "edVPg3ks",
 			OriginalUrl: "http://ya.ru",
 		},
 		{
-			UUID:        "3",
+			UUID:        uuid.New(),
 			ShortCode:   "dG56Hqxm",
 			OriginalUrl: "http://practicum.yandex.ru",
 		},

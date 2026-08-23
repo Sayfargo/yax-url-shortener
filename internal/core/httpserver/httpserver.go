@@ -1,4 +1,4 @@
-package core_server
+package httpserver
 
 import (
 	"context"
@@ -7,19 +7,17 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
-
-	config_server "github.com/Sayfargo/yax-url-shortener/internal/config/server"
 )
 
 type HTTPServer struct {
-	server *http.Server
+	sv *http.Server
 
 	log *slog.Logger
 }
 
-func New(handler http.Handler, cfg *config_server.Config, log *slog.Logger) *HTTPServer {
+func New(handler http.Handler, cfg *Config, log *slog.Logger) *HTTPServer {
 	return &HTTPServer{
-		server: &http.Server{
+		sv: &http.Server{
 			Addr:    cfg.Addr,
 			Handler: handler,
 		},
@@ -35,10 +33,10 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 
 		s.log.Info(
 			"starting http server",
-			slog.String("Addr", s.server.Addr),
+			slog.String("Addr", s.sv.Addr),
 		)
 
-		if err := s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := s.sv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			chErr <- err
 		}
 
@@ -51,7 +49,7 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 			"failed to start server",
 			"err",
 			err,
-			slog.String("Addr", s.server.Addr),
+			slog.String("Addr", s.sv.Addr),
 		)
 		return fmt.Errorf("listen and serve: %w", err)
 	case <-ctx.Done():
@@ -64,16 +62,16 @@ func (s *HTTPServer) Run(ctx context.Context) error {
 				"failed to shutdown",
 				"err",
 				err,
-				slog.String("Addr", s.server.Addr),
+				slog.String("Addr", s.sv.Addr),
 			)
-			_ = s.server.Close()
+			_ = s.sv.Close()
 			return fmt.Errorf("failed to shutdown: %w", err)
 		}
 	}
 
 	s.log.Info(
 		"server successfully closed",
-		slog.String("Addr", s.server.Addr),
+		slog.String("Addr", s.sv.Addr),
 	)
 
 	return nil
@@ -84,7 +82,7 @@ func (s *HTTPServer) shutdown() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 
-	if err := s.server.Shutdown(shutdownCtx); err != nil {
+	if err := s.sv.Shutdown(shutdownCtx); err != nil {
 		return err
 	}
 

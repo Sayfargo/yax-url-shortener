@@ -20,6 +20,386 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCreate_OriginalURLConflict(t *testing.T) {
+	mockSvc := NewMockUrlShortener(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	existingURL := "http://localhost:8080/HeZ1klEf"
+
+	mockSvc.EXPECT().
+		CreateShortUrl(mock.Anything, "https://google.com").
+		Return(existingURL, service.ErrOriginalURLConflict).
+		Once()
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/",
+		strings.NewReader("https://google.com"),
+	)
+
+	handler := New(mockSvc, log, nil)
+
+	rw := httptest.NewRecorder()
+
+	handler.Create(rw, req)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	assert.Equal(t, existingURL, string(body))
+}
+
+func TestShorten_OriginalURLConflict(t *testing.T) {
+	var (
+		method = http.MethodPost
+		target = "/api/shorten"
+		header = "application/json"
+	)
+
+	existingURL := "http://localhost:8080/HeZ1klEf"
+
+	mockSvc := NewMockUrlShortener(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().
+		CreateShortUrl(mock.Anything, "https://google.com").
+		Return(existingURL, service.ErrOriginalURLConflict).
+		Once()
+
+	request := ShortUrlRequest{
+		URL: "https://google.com",
+	}
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		method,
+		target,
+		bytes.NewReader(data),
+	)
+
+	req.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, log, nil)
+
+	rw := httptest.NewRecorder()
+
+	handler.Shorten(rw, req)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	assert.Equal(t, header, resp.Header.Get("Content-Type"))
+
+	var actual ShortUrlResponse
+
+	err = json.NewDecoder(resp.Body).Decode(&actual)
+	require.NoError(t, err)
+
+	expected := ShortUrlResponse{
+		Result: existingURL,
+	}
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestShortenBatch_EmptyBatch(t *testing.T) {
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	request := []CreateUrlBatchRequest{}
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().CreateUrlBatch(mock.Anything, mock.Anything).Return(nil, service.ErrEmptyBatch)
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, nil)
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, "empty batch\n", string(body))
+}
+
+func TestShortenBatch_UnexpectedError(t *testing.T) {
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	request := []CreateUrlBatchRequest{
+		{
+			CorrelationID: "1",
+			OriginalURL:   "https://google.com",
+		},
+		{
+			CorrelationID: "2",
+			OriginalURL:   "https://github.com",
+		},
+	}
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().CreateUrlBatch(mock.Anything, mock.Anything).Return(nil, errors.New("unexpected error"))
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, nil)
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+}
+
+func TestShortenBatch_CollisionLimitExceeded(t *testing.T) {
+
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	request := []CreateUrlBatchRequest{
+		{
+			CorrelationID: "1",
+			OriginalURL:   "https://google.com",
+		},
+		{
+			CorrelationID: "2",
+			OriginalURL:   "https://github.com",
+		},
+	}
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().CreateUrlBatch(mock.Anything, mock.Anything).Return(nil, service.ErrShortCodeCollisionLimitExceeded)
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, nil)
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, "failed to process request, please try again\n", string(body))
+}
+
+func TestShortenBatch_IncorrectURL(t *testing.T) {
+
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	request := []CreateUrlBatchRequest{
+		{
+			CorrelationID: "1",
+			OriginalURL:   "biliberda!...",
+		},
+		{
+			CorrelationID: "2",
+			OriginalURL:   "https://github.com",
+		},
+	}
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().CreateUrlBatch(mock.Anything, mock.Anything).Return(nil, service.ErrIncorrectUrl)
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, nil)
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+}
+
+func TestShortenBatch_TooLargeBodyRequest(t *testing.T) {
+
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	payload := []byte(
+		`[{"correlation_id":"1","original_url":"` +
+			strings.Repeat("a", maxBodySize+100) +
+			`"}]`,
+	)
+
+	require.Greater(t, len(payload), maxBodySize)
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(payload))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, nil)
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	response := rw.Result()
+	defer response.Body.Close()
+	assert.Equal(t, http.StatusRequestEntityTooLarge, response.StatusCode)
+
+}
+
+func TestShortenBatch_InvalidJSON(t *testing.T) {
+
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	body := strings.NewReader(".![]>:)")
+
+	mockSvc := NewMockUrlShortener(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	userRequest := httptest.NewRequest(method, target, body)
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, logger, nil)
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, "failed to read request body\n", string(data))
+}
+
+func TestShortenBatch_Success(t *testing.T) {
+
+	var (
+		method = http.MethodPost
+		target = "/api/shorten/batch"
+		header = "application/json"
+	)
+
+	expectedResp := []service.CreateUrlBatchResponse{
+		{
+			CorrelationID: "1",
+			ShortURL:      "http://localhost:8080/HeZ1klEf",
+		},
+		{
+			CorrelationID: "2",
+			ShortURL:      "http://localhost:8080/FhJ41liz",
+		},
+	}
+
+	expectedBody := []CreateUrlBatchResponse{
+		{
+			CorrelationID: "1",
+			ShortURL:      "http://localhost:8080/HeZ1klEf",
+		},
+		{
+			CorrelationID: "2",
+			ShortURL:      "http://localhost:8080/FhJ41liz",
+		},
+	}
+
+	mockSvc := NewMockUrlShortener(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mockSvc.EXPECT().CreateUrlBatch(mock.Anything, mock.Anything).Return(expectedResp, nil)
+
+	request := []CreateUrlBatchRequest{
+		{
+			CorrelationID: "1",
+			OriginalURL:   "https://google.com",
+		},
+		{
+			CorrelationID: "2",
+			OriginalURL:   "https://github.com",
+		},
+	}
+
+	data, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
+	userRequest.Header.Set("Content-Type", header)
+
+	handler := New(mockSvc, log, nil)
+	rw := httptest.NewRecorder()
+	handler.ShortenBatch(rw, userRequest)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	var actual []CreateUrlBatchResponse
+
+	err = json.NewDecoder(resp.Body).Decode(&actual)
+	require.NoError(t, err)
+
+	assert.Equal(t, header, resp.Header.Get("Content-Type"))
+	assert.Equal(t, expectedBody, actual)
+
+}
+
 func TestCreate_ErrorResponses(t *testing.T) {
 	testcases := []struct {
 		name         string
@@ -44,7 +424,7 @@ func TestCreate_ErrorResponses(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader("bred..k"))
 
-			handler := New(mockSvc, logger)
+			handler := New(mockSvc, logger, nil)
 			rw := httptest.NewRecorder()
 			handler.Create(rw, req)
 
@@ -86,7 +466,7 @@ func TestRedirect_ErrorResponses(t *testing.T) {
 			chiCtx.URLParams.Add("id", test.shortCode)
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-			handler := New(mockSvc, logger)
+			handler := New(mockSvc, logger, nil)
 			rw := httptest.NewRecorder()
 			handler.Redirect(rw, req)
 
@@ -118,7 +498,7 @@ func TestRedirect_InvalidShortCode(t *testing.T) {
 	chiCtx.URLParams.Add("id", shortCode)
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-	handler := New(mockSvc, logger)
+	handler := New(mockSvc, logger, nil)
 	rw := httptest.NewRecorder()
 	handler.Redirect(rw, req)
 
@@ -152,7 +532,7 @@ func TestRedirect_Success(t *testing.T) {
 	chiCtx.URLParams.Add("id", shortCode)
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-	handler := New(mockSvc, logger)
+	handler := New(mockSvc, logger, nil)
 	rw := httptest.NewRecorder()
 	handler.Redirect(rw, req)
 
@@ -183,7 +563,7 @@ func TestCreate_Success(t *testing.T) {
 	req := httptest.NewRequest(method, target, strings.NewReader(url))
 	req.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger)
+	handler := New(mockSvc, logger, nil)
 	rw := httptest.NewRecorder()
 	handler.Create(rw, req)
 
@@ -231,7 +611,7 @@ func TestShorten_ErrorResponses(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewReader(data))
 
-			handler := New(mockSvc, logger)
+			handler := New(mockSvc, logger, nil)
 			rw := httptest.NewRecorder()
 			handler.Shorten(rw, req)
 
@@ -272,7 +652,7 @@ func TestShorten_CreateShortUrl(t *testing.T) {
 	userRequest := httptest.NewRequest(method, target, bytes.NewReader(data))
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger)
+	handler := New(mockSvc, logger, nil)
 	rw := httptest.NewRecorder()
 	handler.Shorten(rw, userRequest)
 
@@ -281,8 +661,6 @@ func TestShorten_CreateShortUrl(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, response.StatusCode)
 
 	body, err := io.ReadAll(response.Body)
-	require.NoError(t, err)
-
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, body)

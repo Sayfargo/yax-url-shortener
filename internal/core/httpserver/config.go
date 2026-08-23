@@ -1,4 +1,4 @@
-package config_server
+package httpserver
 
 import (
 	"flag"

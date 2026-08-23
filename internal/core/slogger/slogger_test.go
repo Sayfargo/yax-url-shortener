@@ -1,4 +1,4 @@
-package core_slogger
+package slogger
 
 import (
 	"bytes"
@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	config_slogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,14 +14,14 @@ func TestSlogger_CreateLogs(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 
-	logger, closer, err := New(config_slogger.Config{
+	logger, closer, err := New(Config{
 		Directory: dir,
-		Stdout:    config_slogger.StdoutConfig{Enabled: true, Format: config_slogger.FormatText, Writer: &buf},
-		Files: []config_slogger.FileConfig{
+		Stdout:    StdoutConfig{Enabled: true, Format: FormatText, Writer: &buf},
+		Files: []FileConfig{
 			{
 				Name:    "app",
 				Enabled: true,
-				Format:  config_slogger.FormatText,
+				Format:  FormatText,
 				Level:   slog.LevelInfo,
 			},
 		},
@@ -56,21 +55,21 @@ func TestSlogger_StdoutDisabled(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 
-	l, c, err := New(config_slogger.Config{
+	l, c, err := New(Config{
 		Directory: dir,
 
-		Stdout: config_slogger.StdoutConfig{
+		Stdout: StdoutConfig{
 			Enabled: false,
-			Format:  config_slogger.FormatText,
+			Format:  FormatText,
 			Level:   slog.LevelInfo,
 			Writer:  &buf,
 		},
 
-		Files: []config_slogger.FileConfig{
+		Files: []FileConfig{
 			{
 				Name:    "app",
 				Enabled: true,
-				Format:  config_slogger.FormatText,
+				Format:  FormatText,
 				Level:   slog.LevelInfo,
 			},
 		},
@@ -93,21 +92,21 @@ func TestSlogger_FilesDisabled(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 
-	l, c, err := New(config_slogger.Config{
+	l, c, err := New(Config{
 		Directory: dir,
 
-		Stdout: config_slogger.StdoutConfig{
+		Stdout: StdoutConfig{
 			Enabled: true,
-			Format:  config_slogger.FormatText,
+			Format:  FormatText,
 			Level:   slog.LevelInfo,
 			Writer:  &buf,
 		},
 
-		Files: []config_slogger.FileConfig{
+		Files: []FileConfig{
 			{
 				Name:    "app",
 				Enabled: false,
-				Format:  config_slogger.FormatText,
+				Format:  FormatText,
 				Level:   slog.LevelInfo,
 			},
 		},

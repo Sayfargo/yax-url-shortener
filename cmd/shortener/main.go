@@ -8,9 +8,8 @@ import (
 	"syscall"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
-	config_slogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
-	core_app "github.com/Sayfargo/yax-url-shortener/internal/core/app"
-	core_slogger "github.com/Sayfargo/yax-url-shortener/internal/core/slogger"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/app"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/slogger"
 )
 
 func main() {
@@ -25,17 +24,17 @@ func main() {
 	}
 
 	// logger config
-	logConfig := config_slogger.Config{
+	logConfig := slogger.Config{
 		Directory: "./log",
-		Stdout: config_slogger.StdoutConfig{
+		Stdout: slogger.StdoutConfig{
 			Enabled: true,
-			Format:  config_slogger.FormatText,
+			Format:  slogger.FormatText,
 			Writer:  os.Stdout,
 		},
 	}
 
 	// initialize logger
-	slog, closer, err := core_slogger.New(logConfig)
+	slog, closer, err := slogger.New(logConfig)
 	if err != nil {
 		log.Printf("slogger: %v\n", err)
 		return
@@ -48,7 +47,7 @@ func main() {
 	}()
 
 	// application
-	app, err := core_app.New(cfg, slog)
+	app, err := app.New(cfg, slog)
 	if err != nil {
 		slog.Error(
 			"failed to initialize application",

@@ -7,6 +7,7 @@ package handler
 import (
 	"context"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -99,6 +100,74 @@ func (_c *MockUrlShortener_CreateShortUrl_Call) Return(s string, err error) *Moc
 }
 
 func (_c *MockUrlShortener_CreateShortUrl_Call) RunAndReturn(run func(ctx context.Context, url string) (string, error)) *MockUrlShortener_CreateShortUrl_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateUrlBatch provides a mock function for the type MockUrlShortener
+func (_mock *MockUrlShortener) CreateUrlBatch(ctx context.Context, req []service.CreateUrlBatchRequest) ([]service.CreateUrlBatchResponse, error) {
+	ret := _mock.Called(ctx, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateUrlBatch")
+	}
+
+	var r0 []service.CreateUrlBatchResponse
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []service.CreateUrlBatchRequest) ([]service.CreateUrlBatchResponse, error)); ok {
+		return returnFunc(ctx, req)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []service.CreateUrlBatchRequest) []service.CreateUrlBatchResponse); ok {
+		r0 = returnFunc(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]service.CreateUrlBatchResponse)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []service.CreateUrlBatchRequest) error); ok {
+		r1 = returnFunc(ctx, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockUrlShortener_CreateUrlBatch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateUrlBatch'
+type MockUrlShortener_CreateUrlBatch_Call struct {
+	*mock.Call
+}
+
+// CreateUrlBatch is a helper method to define mock.On call
+//   - ctx context.Context
+//   - req []service.CreateUrlBatchRequest
+func (_e *MockUrlShortener_Expecter) CreateUrlBatch(ctx any, req any) *MockUrlShortener_CreateUrlBatch_Call {
+	return &MockUrlShortener_CreateUrlBatch_Call{Call: _e.mock.On("CreateUrlBatch", ctx, req)}
+}
+
+func (_c *MockUrlShortener_CreateUrlBatch_Call) Run(run func(ctx context.Context, req []service.CreateUrlBatchRequest)) *MockUrlShortener_CreateUrlBatch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []service.CreateUrlBatchRequest
+		if args[1] != nil {
+			arg1 = args[1].([]service.CreateUrlBatchRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockUrlShortener_CreateUrlBatch_Call) Return(createUrlBatchResponses []service.CreateUrlBatchResponse, err error) *MockUrlShortener_CreateUrlBatch_Call {
+	_c.Call.Return(createUrlBatchResponses, err)
+	return _c
+}
+
+func (_c *MockUrlShortener_CreateUrlBatch_Call) RunAndReturn(run func(ctx context.Context, req []service.CreateUrlBatchRequest) ([]service.CreateUrlBatchResponse, error)) *MockUrlShortener_CreateUrlBatch_Call {
 	_c.Call.Return(run)
 	return _c
 }

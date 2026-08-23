@@ -1,4 +1,4 @@
-package core_storage_file
+package filestorage
 
 import (
 	"bufio"
@@ -8,7 +8,6 @@ import (
 	"os"
 	"sync"
 
-	config_storage "github.com/Sayfargo/yax-url-shortener/internal/config/storage"
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
 )
 
@@ -19,7 +18,7 @@ type FileStorage struct {
 	mu sync.Mutex
 }
 
-func Init(cfg *config_storage.Config) (*FileStorage, error) {
+func Init(cfg *Config) (*FileStorage, error) {
 	file, err := os.OpenFile(cfg.FilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		return nil, err
@@ -37,6 +36,19 @@ func (fs *FileStorage) WriteURL(shortenedUrl model.ShortenedUrl) error {
 	defer fs.mu.Unlock()
 
 	return fs.encoder.Encode(shortenedUrl)
+}
+
+func (fs *FileStorage) WriteURLs(shortenedUrls []model.ShortenedUrl) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	for _, shortenedUrl := range shortenedUrls {
+		if err := fs.encoder.Encode(shortenedUrl); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (fs *FileStorage) ReadURLs() ([]model.ShortenedUrl, error) {

@@ -10,30 +10,149 @@ import (
 
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UrlShortener interface {
 	CreateShortUrl(ctx context.Context, url string) (string, error)
+	CreateUrlBatch(ctx context.Context, req []service.CreateUrlBatchRequest) ([]service.CreateUrlBatchResponse, error)
 	GetOriginalUrl(ctx context.Context, shortCode string) (string, error)
 }
 
 type Handler struct {
 	service UrlShortener
-
-	log *slog.Logger
+	log     *slog.Logger
+	pool    *pgxpool.Pool
 }
 
-func New(service UrlShortener, log *slog.Logger) *Handler {
+const maxBodySize = 1024 * 1024
+
+func New(service UrlShortener, log *slog.Logger, pool *pgxpool.Pool) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
+		pool:    pool,
 	}
 }
 
 func (h *Handler) Register(r chi.Router) {
 	r.Post("/", h.Create)
 	r.Post("/api/shorten", h.Shorten)
+	r.Post("/api/shorten/batch", h.ShortenBatch)
 	r.Get("/{id}", h.Redirect)
+	r.Get("/ping", h.Ping)
+}
+
+func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
+
+	var request []CreateUrlBatchRequest
+
+	body := http.MaxBytesReader(
+		w,
+		r.Body,
+		maxBodySize,
+	)
+
+	if err := json.NewDecoder(body).Decode(&request); err != nil {
+
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+
+			h.log.Warn("request body exceeded max allowed size",
+				slog.Int64("limit_bytes", maxBytesErr.Limit),
+				slog.String("path", r.URL.Path),
+				slog.String("remote_addr", r.RemoteAddr),
+			)
+
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		} else {
+			h.log.Info(
+				"failed to decode json body",
+				"err", err,
+			)
+
+			http.Error(w, "failed to read request body", http.StatusBadRequest)
+		}
+		return
+	}
+
+	serviceReq := make([]service.CreateUrlBatchRequest, len(request))
+
+	for i, item := range request {
+		serviceReq[i] = service.CreateUrlBatchRequest{
+			CorrelationID: item.CorrelationID,
+			OriginalURL:   item.OriginalURL,
+		}
+	}
+
+	result, err := h.service.CreateUrlBatch(r.Context(), serviceReq)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			h.log.Debug("create short url canceled by client")
+			w.WriteHeader(499)
+		} else if errors.Is(err, service.ErrIncorrectUrl) {
+
+			h.log.Info(
+				"incorrect url request",
+				"err", err,
+			)
+			// ошибка содержит информацию на какой именно строке и с каким id возникла ошибка для удобства
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else if errors.Is(err, service.ErrShortCodeCollisionLimitExceeded) {
+			h.log.Warn(
+				"short code collision limit exceeded",
+			)
+			http.Error(w, "failed to process request, please try again", http.StatusInternalServerError)
+		} else if errors.Is(err, service.ErrEmptyBatch) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+
+		} else {
+			h.log.Error(
+				"unexpected error during url shortening",
+				"err", err,
+			)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	response := make([]CreateUrlBatchResponse, len(result))
+
+	for i, u := range result {
+		response[i].CorrelationID = u.CorrelationID
+		response[i].ShortURL = u.ShortURL
+	}
+
+	data, err := json.Marshal(response)
+	if err != nil {
+		h.log.Error(
+			"failed to marshal response json",
+			"err", err,
+		)
+
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	w.Write(data)
+
+}
+
+func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
+
+	if h.pool == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.pool.Ping(r.Context()); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
@@ -83,8 +202,13 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 		response ShortUrlResponse
 	)
 
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1024*1024)).Decode(&request); err != nil {
+	body := http.MaxBytesReader(
+		w,
+		r.Body,
+		maxBodySize,
+	)
 
+	if err := json.NewDecoder(body).Decode(&request); err != nil {
 		h.log.Info(
 			"failed to decode json body",
 			"err", err,
@@ -95,28 +219,35 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shortedUrl, err := h.service.CreateShortUrl(r.Context(), request.URL)
+
+	status := http.StatusCreated
+
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		switch {
+		case errors.Is(err, context.Canceled):
 			h.log.Debug("create short url canceled by client")
 			w.WriteHeader(499)
-		} else if errors.Is(err, service.ErrShortCodeCollisionLimitExceeded) {
-
+			return
+		case errors.Is(err, service.ErrShortCodeCollisionLimitExceeded):
 			h.log.Warn(
 				"short code collision limit exceeded",
 				"url", request.URL,
 			)
 
 			http.Error(w, "failed to process request, please try again", http.StatusInternalServerError)
-		} else if errors.Is(err, service.ErrIncorrectUrl) {
-
+			return
+		case errors.Is(err, service.ErrIncorrectUrl):
 			h.log.Info(
 				"incorrect url request",
+				"err", err,
 				"url", request.URL,
 			)
 
 			http.Error(w, "incorrect URL", http.StatusBadRequest)
-		} else {
-
+			return
+		case errors.Is(err, service.ErrOriginalURLConflict):
+			status = http.StatusConflict
+		default:
 			h.log.Error(
 				"unexpected error during url shortening",
 				"err", err,
@@ -124,15 +255,14 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 			)
 
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
 		}
-		return
 	}
 
 	response.Result = shortedUrl
 
-	body, err := json.Marshal(response)
+	data, err := json.Marshal(response)
 	if err != nil {
-
 		h.log.Error(
 			"failed to marshal response json",
 			"err", err,
@@ -142,8 +272,8 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	w.Write(body)
+	w.WriteHeader(status)
+	w.Write(data)
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -161,29 +291,47 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	url := string(data)
 
 	shortedUrl, err := h.service.CreateShortUrl(r.Context(), url)
+
+	status := http.StatusCreated
+
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		switch {
+		case errors.Is(err, context.Canceled):
 			h.log.Debug("create short url canceled by client")
-		} else if errors.Is(err, service.ErrShortCodeCollisionLimitExceeded) {
+			w.WriteHeader(499)
+			return
+		case errors.Is(err, service.ErrShortCodeCollisionLimitExceeded):
 			h.log.Warn(
 				"short code collision limit exceeded",
 				"url", url,
 			)
+
 			http.Error(w, "failed to process request, please try again", http.StatusInternalServerError)
-		} else if errors.Is(err, service.ErrIncorrectUrl) {
+			return
+		case errors.Is(err, service.ErrIncorrectUrl):
+			h.log.Info(
+				"incorrect url request",
+				"err", err,
+				"url", url,
+			)
+
 			http.Error(w, "incorrect URL", http.StatusBadRequest)
-		} else {
+			return
+		case errors.Is(err, service.ErrOriginalURLConflict):
+			status = http.StatusConflict
+		default:
 			h.log.Error(
 				"unexpected error during url shortening",
 				"err", err,
 				"url", url,
 			)
+
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
 		}
-		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(status)
 	w.Write([]byte(shortedUrl))
 }

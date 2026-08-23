@@ -1,4 +1,4 @@
-package config_storage
+package postgres
 
 import (
 	"flag"
@@ -8,21 +8,21 @@ import (
 )
 
 type Config struct {
-	FilePath string `env:"FILE_STORAGE_PATH"`
+	DBDsn string `env:"DATABASE_DSN"`
 }
 
 func RegisterFlags(fs *flag.FlagSet) *Config {
 
-	fileStorageConfig := new(Config)
+	postgresConfig := new(Config)
 
 	fs.StringVar(
-		&fileStorageConfig.FilePath,
-		"f",
-		"./urls.json",
-		"URL file storage path",
+		&postgresConfig.DBDsn,
+		"d",
+		"",
+		"database url connection",
 	)
 
-	return fileStorageConfig
+	return postgresConfig
 
 }
 

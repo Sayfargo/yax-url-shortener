@@ -1,19 +1,17 @@
-package core_slogger
+package slogger
 
 import (
 	"log/slog"
 	"os"
-
-	config_slogger "github.com/Sayfargo/yax-url-shortener/internal/config/slogger"
 )
 
-func newFileHandler(cfg config_slogger.FileConfig, file *os.File) slog.Handler {
+func newFileHandler(cfg FileConfig, file *os.File) slog.Handler {
 	switch cfg.Format {
-	case config_slogger.FormatJSON:
+	case FormatJSON:
 		return slog.NewJSONHandler(file, &slog.HandlerOptions{
 			Level: cfg.Level,
 		})
-	case config_slogger.FormatText:
+	case FormatText:
 		return slog.NewTextHandler(file, &slog.HandlerOptions{
 			Level: cfg.Level,
 		})
@@ -24,7 +22,7 @@ func newFileHandler(cfg config_slogger.FileConfig, file *os.File) slog.Handler {
 	})
 }
 
-func newStdoutHandler(cfg config_slogger.StdoutConfig) slog.Handler {
+func newStdoutHandler(cfg StdoutConfig) slog.Handler {
 
 	writer := cfg.Writer
 
@@ -33,11 +31,11 @@ func newStdoutHandler(cfg config_slogger.StdoutConfig) slog.Handler {
 	}
 
 	switch cfg.Format {
-	case config_slogger.FormatJSON:
+	case FormatJSON:
 		return slog.NewJSONHandler(writer, &slog.HandlerOptions{
 			Level: cfg.Level,
 		})
-	case config_slogger.FormatText:
+	case FormatText:
 		return slog.NewTextHandler(writer, &slog.HandlerOptions{
 			Level: cfg.Level,
 		})

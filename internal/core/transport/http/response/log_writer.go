@@ -1,4 +1,4 @@
-package core_transport_http_reponse
+package httpresponse
 
 import "net/http"
 

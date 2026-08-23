@@ -1,20 +1,20 @@
-package repository_cache
+package url
 
 import (
 	"context"
 	"fmt"
 
-	core_storage_file "github.com/Sayfargo/yax-url-shortener/internal/core/storage/file"
+	"github.com/Sayfargo/yax-url-shortener/internal/core/filestorage"
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
 )
 
 type FileCacheRepository struct {
 	*CacheRepository
 
-	fs *core_storage_file.FileStorage
+	fs *filestorage.FileStorage
 }
 
-func NewFileCacheRepository(cacheRepository *CacheRepository, fileStorage *core_storage_file.FileStorage) (*FileCacheRepository, error) {
+func NewFileInMemoryRepository(cacheRepository *CacheRepository, fileStorage *filestorage.FileStorage) (*FileCacheRepository, error) {
 
 	repo := &FileCacheRepository{
 		CacheRepository: cacheRepository,
@@ -27,7 +27,22 @@ func NewFileCacheRepository(cacheRepository *CacheRepository, fileStorage *core_
 	return repo, nil
 }
 
+func (r *FileCacheRepository) CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	if err := r.CacheRepository.CreateBatch(ctx, shortenedUrls); err != nil {
+		return err
+	}
+
+	return r.fs.WriteURLs(shortenedUrls)
+}
+
 func (r *FileCacheRepository) Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if err := r.CacheRepository.Create(ctx, shortenedUrl); err != nil {
 		return err
 	}
@@ -43,7 +58,7 @@ func (r *FileCacheRepository) restoreCache() error {
 	}
 
 	for _, shortenedUrl := range shortenedUrls {
-		r.cache.Set(shortenedUrl.ShortCode, shortenedUrl)
+		r.c.Set(shortenedUrl.ShortCode, shortenedUrl)
 	}
 
 	return nil
