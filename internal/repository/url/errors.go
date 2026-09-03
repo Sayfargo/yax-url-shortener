@@ -21,10 +21,10 @@ func (e *BatchConflictError) Error() string {
 	return fmt.Sprintf("conflict at index %d: %v", e.Index, e.Err)
 }
 
-type OriginalUrlConflictError struct {
+type OriginalURLConflictError struct {
 	ShortCode string
 }
 
-func (o *OriginalUrlConflictError) Error() string {
+func (o *OriginalURLConflictError) Error() string {
 	return fmt.Sprintf("conflict at url: %s", o.ShortCode)
 }

@@ -27,38 +27,38 @@ func NewFileInMemoryRepository(cacheRepository *CacheRepository, fileStorage *fi
 	return repo, nil
 }
 
-func (r *FileCacheRepository) CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error {
+func (r *FileCacheRepository) CreateBatch(ctx context.Context, ShortenedURLs []model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 
-	if err := r.CacheRepository.CreateBatch(ctx, shortenedUrls); err != nil {
+	if err := r.CacheRepository.CreateBatch(ctx, ShortenedURLs); err != nil {
 		return err
 	}
 
-	return r.fs.WriteURLs(shortenedUrls)
+	return r.fs.WriteURLs(ShortenedURLs)
 }
 
-func (r *FileCacheRepository) Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error {
+func (r *FileCacheRepository) Create(ctx context.Context, ShortenedURL model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if err := r.CacheRepository.Create(ctx, shortenedUrl); err != nil {
+	if err := r.CacheRepository.Create(ctx, ShortenedURL); err != nil {
 		return err
 	}
 
-	return r.fs.WriteURL(shortenedUrl)
+	return r.fs.WriteURL(ShortenedURL)
 }
 
 func (r *FileCacheRepository) restoreCache() error {
 
-	shortenedUrls, err := r.fs.ReadURLs()
+	ShortenedURLs, err := r.fs.ReadURLs()
 	if err != nil {
 		return fmt.Errorf("failed to read urls: %w", err)
 	}
 
-	for _, shortenedUrl := range shortenedUrls {
-		r.c.Set(shortenedUrl.ShortCode, shortenedUrl)
+	for _, ShortenedURL := range ShortenedURLs {
+		r.c.Set(ShortenedURL.ShortCode, ShortenedURL)
 	}
 
 	return nil

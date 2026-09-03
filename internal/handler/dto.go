@@ -1,19 +1,19 @@
 package handler
 
-type ShortUrlRequest struct {
+type ShortURLRequest struct {
 	URL string `json:"url"`
 }
 
-type ShortUrlResponse struct {
+type ShortURLResponse struct {
 	Result string `json:"result"`
 }
 
-type CreateUrlBatchRequest struct {
+type CreateURLBatchRequest struct {
 	CorrelationID string `json:"correlation_id"`
 	OriginalURL   string `json:"original_url"`
 }
 
-type CreateUrlBatchResponse struct {
+type CreateURLBatchResponse struct {
 	CorrelationID string `json:"correlation_id"`
 	ShortURL      string `json:"short_url"`
 }

@@ -23,14 +23,14 @@ func NewPgRepo(pool *pgxpool.Pool) *PostgresRepository {
 	}
 }
 
-func (pr *PostgresRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.ShortenedUrl, error) {
+func (pr *PostgresRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.ShortenedURL, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 
 	query := `SELECT uuid, short_code, original_url, user_id FROM shortened_urls WHERE user_id = $1`
 
-	urls := make([]model.ShortenedUrl, 0, 32)
+	urls := make([]model.ShortenedURL, 0, 32)
 
 	rows, err := pr.pool.Query(ctx, query, uid)
 	if err != nil {
@@ -40,9 +40,9 @@ func (pr *PostgresRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]mod
 	defer rows.Close()
 
 	for rows.Next() {
-		var u model.ShortenedUrl
+		var u model.ShortenedURL
 
-		if err := rows.Scan(&u.UUID, &u.ShortCode, &u.OriginalUrl, &u.UserID); err != nil {
+		if err := rows.Scan(&u.UUID, &u.ShortCode, &u.OriginalURL, &u.UserID); err != nil {
 			return nil, fmt.Errorf("pgx rows scan: %w", err)
 		}
 
@@ -81,7 +81,7 @@ func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string
 
 }
 
-func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error {
+func (pr *PostgresRepository) CreateBatch(ctx context.Context, ShortenedURLs []model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -100,8 +100,8 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 		INSERT INTO shortened_urls (uuid, short_code, original_url, user_id)
 		VALUES ($1, $2, $3, $4)
 	`
-	for _, u := range shortenedUrls {
-		batch.Queue(query, u.UUID, u.ShortCode, u.OriginalUrl, u.UserID)
+	for _, u := range ShortenedURLs {
+		batch.Queue(query, u.UUID, u.ShortCode, u.OriginalURL, u.UserID)
 	}
 
 	br := tx.SendBatch(ctx, batch)
@@ -109,7 +109,7 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 		_ = br.Close()
 	}()
 
-	for i := range len(shortenedUrls) {
+	for i := range len(ShortenedURLs) {
 		_, err := br.Exec()
 		if err != nil {
 
@@ -138,7 +138,7 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 	return nil
 }
 
-func (pr *PostgresRepository) Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error {
+func (pr *PostgresRepository) Create(ctx context.Context, ShortenedURL model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -159,10 +159,10 @@ func (pr *PostgresRepository) Create(ctx context.Context, shortenedUrl model.Sho
 	err := pr.pool.QueryRow(
 		ctx,
 		query,
-		shortenedUrl.UUID,
-		shortenedUrl.ShortCode,
-		shortenedUrl.OriginalUrl,
-		shortenedUrl.UserID,
+		ShortenedURL.UUID,
+		ShortenedURL.ShortCode,
+		ShortenedURL.OriginalURL,
+		ShortenedURL.UserID,
 	).Scan(&shortCode, &inserted)
 
 	if err != nil {
@@ -179,7 +179,7 @@ func (pr *PostgresRepository) Create(ctx context.Context, shortenedUrl model.Sho
 	}
 
 	if !inserted {
-		return &OriginalUrlConflictError{
+		return &OriginalURLConflictError{
 			ShortCode: shortCode,
 		}
 	}

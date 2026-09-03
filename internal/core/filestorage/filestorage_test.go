@@ -14,14 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func assertURLsEqual(t *testing.T, expected, actual []model.ShortenedUrl) {
+func assertURLsEqual(t *testing.T, expected, actual []model.ShortenedURL) {
 	t.Helper()
 	require.Len(t, actual, len(expected))
 
 	for i := range expected {
 		assert.Equal(t, expected[i].UUID, actual[i].UUID)
 		assert.Equal(t, expected[i].ShortCode, actual[i].ShortCode)
-		assert.Equal(t, expected[i].OriginalUrl, actual[i].OriginalUrl)
+		assert.Equal(t, expected[i].OriginalURL, actual[i].OriginalURL)
 	}
 }
 
@@ -55,13 +55,13 @@ func TestFileStorage_Close(t *testing.T) {
 	err = fileStorage.Close()
 	require.NoError(t, err)
 
-	shortenedUrl := model.ShortenedUrl{
+	ShortenedURL := model.ShortenedURL{
 		UUID:        uuid.New(),
 		ShortCode:   "4rSPg8ap",
-		OriginalUrl: "http://yandex.ru",
+		OriginalURL: "http://yandex.ru",
 	}
 
-	err = fileStorage.WriteURL(shortenedUrl)
+	err = fileStorage.WriteURL(ShortenedURL)
 	require.Error(t, err)
 }
 
@@ -80,27 +80,27 @@ func TestFileStorage_AppendAfterRead(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	shortenedUrls := []model.ShortenedUrl{
+	ShortenedURLs := []model.ShortenedURL{
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "4rSPg8ap",
-			OriginalUrl: "http://yandex.ru",
+			OriginalURL: "http://yandex.ru",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "edVPg3ks",
-			OriginalUrl: "http://ya.ru",
+			OriginalURL: "http://ya.ru",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "dG56Hqxm",
-			OriginalUrl: "http://practicum.yandex.ru",
+			OriginalURL: "http://practicum.yandex.ru",
 		},
 	}
 
 	// Сначала делаем первые три записи
-	for _, shortenedUrl := range shortenedUrls {
-		err = fileStorage.WriteURL(shortenedUrl)
+	for _, ShortenedURL := range ShortenedURLs {
+		err = fileStorage.WriteURL(ShortenedURL)
 		require.NoError(t, err)
 	}
 
@@ -108,19 +108,19 @@ func TestFileStorage_AppendAfterRead(t *testing.T) {
 	results, err := fileStorage.ReadURLs()
 	require.NoError(t, err)
 
-	assert.Equal(t, len(shortenedUrls), len(results))
+	assert.Equal(t, len(ShortenedURLs), len(results))
 
 	// Проверяем что первые три записи были прочитаны в правильном порядке
 
-	assertURLsEqual(t, shortenedUrls, results)
+	assertURLsEqual(t, ShortenedURLs, results)
 
-	newRecord := model.ShortenedUrl{
+	newRecord := model.ShortenedURL{
 		UUID:        uuid.New(),
 		ShortCode:   "v256HZ3m",
-		OriginalUrl: "https://google.com",
+		OriginalURL: "https://google.com",
 	}
 
-	shortenedUrls = append(shortenedUrls, newRecord)
+	ShortenedURLs = append(ShortenedURLs, newRecord)
 
 	// По логике должны записать новую запись в конец файла
 	err = fileStorage.WriteURL(newRecord)
@@ -129,10 +129,10 @@ func TestFileStorage_AppendAfterRead(t *testing.T) {
 	newResults, err := fileStorage.ReadURLs()
 	require.NoError(t, err)
 
-	assert.Equal(t, len(shortenedUrls), len(newResults))
+	assert.Equal(t, len(ShortenedURLs), len(newResults))
 
 	// Снова проверяем были ли прочтены все записи в правильном порядке
-	assertURLsEqual(t, shortenedUrls, newResults)
+	assertURLsEqual(t, ShortenedURLs, newResults)
 }
 
 func TestFileStorage_InvalidPath(t *testing.T) {
@@ -164,26 +164,26 @@ func TestFileStorage_ReadURLs(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	shortenedUrls := []model.ShortenedUrl{
+	ShortenedURLs := []model.ShortenedURL{
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "4rSPg8ap",
-			OriginalUrl: "http://yandex.ru",
+			OriginalURL: "http://yandex.ru",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "edVPg3ks",
-			OriginalUrl: "http://ya.ru",
+			OriginalURL: "http://ya.ru",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "dG56Hqxm",
-			OriginalUrl: "http://practicum.yandex.ru",
+			OriginalURL: "http://practicum.yandex.ru",
 		},
 	}
 
-	for _, shortenedUrl := range shortenedUrls {
-		err = fileStorage.WriteURL(shortenedUrl)
+	for _, ShortenedURL := range ShortenedURLs {
+		err = fileStorage.WriteURL(ShortenedURL)
 		require.NoError(t, err)
 	}
 
@@ -191,9 +191,9 @@ func TestFileStorage_ReadURLs(t *testing.T) {
 	results, err := fileStorage.ReadURLs()
 	require.NoError(t, err)
 
-	assert.Equal(t, len(shortenedUrls), len(results))
+	assert.Equal(t, len(ShortenedURLs), len(results))
 
-	assertURLsEqual(t, shortenedUrls, results)
+	assertURLsEqual(t, ShortenedURLs, results)
 
 }
 
@@ -213,26 +213,26 @@ func TestFileStorage_WriteURL(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	shortenedUrls := []model.ShortenedUrl{
+	ShortenedURLs := []model.ShortenedURL{
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "4rSPg8ap",
-			OriginalUrl: "http://yandex.ru",
+			OriginalURL: "http://yandex.ru",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "edVPg3ks",
-			OriginalUrl: "http://ya.ru",
+			OriginalURL: "http://ya.ru",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "dG56Hqxm",
-			OriginalUrl: "http://practicum.yandex.ru",
+			OriginalURL: "http://practicum.yandex.ru",
 		},
 	}
 
-	for _, shortenedUrl := range shortenedUrls {
-		err = fileStorage.WriteURL(shortenedUrl)
+	for _, ShortenedURL := range ShortenedURLs {
+		err = fileStorage.WriteURL(ShortenedURL)
 		require.NoError(t, err)
 	}
 
@@ -249,20 +249,20 @@ func TestFileStorage_WriteURL(t *testing.T) {
 
 		line := scanner.Bytes()
 
-		var readUrl model.ShortenedUrl
+		var readUrl model.ShortenedURL
 
 		err := json.Unmarshal(line, &readUrl)
 		assert.NoError(t, err)
 
-		assert.Equal(t, shortenedUrls[lineCount].UUID, readUrl.UUID)
-		assert.Equal(t, shortenedUrls[lineCount].ShortCode, readUrl.ShortCode)
-		assert.Equal(t, shortenedUrls[lineCount].OriginalUrl, readUrl.OriginalUrl)
+		assert.Equal(t, ShortenedURLs[lineCount].UUID, readUrl.UUID)
+		assert.Equal(t, ShortenedURLs[lineCount].ShortCode, readUrl.ShortCode)
+		assert.Equal(t, ShortenedURLs[lineCount].OriginalURL, readUrl.OriginalURL)
 
 		lineCount++
 	}
 
 	require.NoError(t, scanner.Err())
 
-	assert.Equal(t, len(shortenedUrls), lineCount)
+	assert.Equal(t, len(ShortenedURLs), lineCount)
 
 }

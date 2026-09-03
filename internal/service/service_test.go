@@ -120,17 +120,17 @@ func TestGetUserURLs_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	shortCode := "short-url"
-	originalURL := "original-url"
+	OriginalURL := "original-url"
 
 	shortURL := baseUrl + "/" + shortCode
 
 	repo.EXPECT().
 		GetURLs(mock.Anything, mock.Anything).
-		Return([]model.ShortenedUrl{
+		Return([]model.ShortenedURL{
 			{
 				UUID:        urlUUID,
 				ShortCode:   shortCode,
-				OriginalUrl: originalURL,
+				OriginalURL: OriginalURL,
 				UserID:      userUUID,
 			},
 		}, nil,
@@ -139,11 +139,11 @@ func TestGetUserURLs_Success(t *testing.T) {
 	resp, err := service.GetUserURLs(context.Background(), userUUID.String())
 	require.NoError(t, err)
 
-	require.Equal(t, originalURL, resp[0].OriginalURL)
+	require.Equal(t, OriginalURL, resp[0].OriginalURL)
 	require.Equal(t, shortURL, resp[0].ShortURL)
 }
 
-func TestCreateShortUrl_OriginalURLConflict(t *testing.T) {
+func TestCreateShortURL_OriginalURLConflict(t *testing.T) {
 	repo := NewMockURLRepository(t)
 	generator := NewMockGenerator(t)
 
@@ -158,7 +158,7 @@ func TestCreateShortUrl_OriginalURLConflict(t *testing.T) {
 		log,
 	)
 
-	originalURL := "https://google.com"
+	OriginalURL := "https://google.com"
 
 	generator.EXPECT().
 		Generate(alphabet, size).
@@ -167,21 +167,21 @@ func TestCreateShortUrl_OriginalURLConflict(t *testing.T) {
 	repo.EXPECT().
 		Create(
 			mock.Anything,
-			mock.MatchedBy(func(u model.ShortenedUrl) bool {
-				return u.OriginalUrl == originalURL &&
+			mock.MatchedBy(func(u model.ShortenedURL) bool {
+				return u.OriginalURL == OriginalURL &&
 					u.ShortCode == "abc12345"
 			}),
 		).
-		Return(&urlrepo.OriginalUrlConflictError{
+		Return(&urlrepo.OriginalURLConflictError{
 			ShortCode: "existingCode",
 		})
 
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	result, err := service.CreateShortUrl(
+	result, err := service.CreateShortURL(
 		context.Background(),
-		originalURL,
+		OriginalURL,
 		uid.String(),
 	)
 
@@ -194,14 +194,14 @@ func TestCreateShortUrl_OriginalURLConflict(t *testing.T) {
 	)
 }
 
-func TestCreateUrlBatch_EmptyBatch(t *testing.T) {
-	req := []CreateUrlBatchRequest{}
+func TestCreateURLBatch_EmptyBatch(t *testing.T) {
+	req := []CreateURLBatchRequest{}
 
 	repo := NewMockURLRepository(t)
 	generator := NewMockGenerator(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := &UrlShortenerService{
+	svc := &URLShortenerService{
 		repo:      repo,
 		generator: generator,
 		validate:  validator.New(),
@@ -212,15 +212,15 @@ func TestCreateUrlBatch_EmptyBatch(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	_, err = svc.CreateUrlBatch(context.Background(), req, uid.String())
+	_, err = svc.CreateURLBatch(context.Background(), req, uid.String())
 	require.ErrorContains(t, err, "empty batch")
 
 }
 
-func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
+func TestCreateURLBatch_CollisionLimitExceeded(t *testing.T) {
 	ctx := context.Background()
 
-	req := []CreateUrlBatchRequest{
+	req := []CreateURLBatchRequest{
 		{
 			CorrelationID: "1",
 			OriginalURL:   "https://google.com",
@@ -231,7 +231,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 	generator := NewMockGenerator(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := &UrlShortenerService{
+	svc := &URLShortenerService{
 		repo:      repo,
 		generator: generator,
 		validate:  validator.New(),
@@ -248,7 +248,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 		Once()
 
 	repo.EXPECT().
-		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedUrl) bool {
+		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedURL) bool {
 			return len(batch) == 1 &&
 				batch[0].ShortCode == "code1"
 		})).
@@ -263,7 +263,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 		Once()
 
 	repo.EXPECT().
-		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedUrl) bool {
+		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedURL) bool {
 			return len(batch) == 1 &&
 				batch[0].ShortCode == "code2"
 		})).
@@ -278,7 +278,7 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 		Once()
 
 	repo.EXPECT().
-		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedUrl) bool {
+		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedURL) bool {
 			return len(batch) == 1 &&
 				batch[0].ShortCode == "code3"
 		})).
@@ -287,14 +287,14 @@ func TestCreateUrlBatch_CollisionLimitExceeded(t *testing.T) {
 		}).
 		Once()
 
-	_, err = svc.CreateUrlBatch(ctx, req, uid.String())
+	_, err = svc.CreateURLBatch(ctx, req, uid.String())
 	require.ErrorIs(t, err, ErrShortCodeCollisionLimitExceeded)
 }
 
-func TestCreateUrlBatch_RetryOnBatchConflict(t *testing.T) {
+func TestCreateURLBatch_RetryOnBatchConflict(t *testing.T) {
 	ctx := context.Background()
 
-	req := []CreateUrlBatchRequest{
+	req := []CreateURLBatchRequest{
 		{
 			CorrelationID: "1",
 			OriginalURL:   "https://google.com",
@@ -309,7 +309,7 @@ func TestCreateUrlBatch_RetryOnBatchConflict(t *testing.T) {
 	generator := NewMockGenerator(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := &UrlShortenerService{
+	svc := &URLShortenerService{
 		repo:      repo,
 		generator: generator,
 		validate:  validator.New(),
@@ -331,7 +331,7 @@ func TestCreateUrlBatch_RetryOnBatchConflict(t *testing.T) {
 		Once()
 
 	repo.EXPECT().
-		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedUrl) bool {
+		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedURL) bool {
 			return len(batch) == 2 &&
 				batch[0].ShortCode == "code1" &&
 				batch[1].ShortCode == "code2"
@@ -347,7 +347,7 @@ func TestCreateUrlBatch_RetryOnBatchConflict(t *testing.T) {
 		Once()
 
 	repo.EXPECT().
-		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedUrl) bool {
+		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedURL) bool {
 			return len(batch) == 2 &&
 				batch[0].ShortCode == "code1" &&
 				batch[1].ShortCode == "code3"
@@ -355,11 +355,11 @@ func TestCreateUrlBatch_RetryOnBatchConflict(t *testing.T) {
 		Return(nil).
 		Once()
 
-	resp, err := svc.CreateUrlBatch(ctx, req, uid.String())
+	resp, err := svc.CreateURLBatch(ctx, req, uid.String())
 
 	require.NoError(t, err)
 
-	expected := []CreateUrlBatchResponse{
+	expected := []CreateURLBatchResponse{
 		{
 			CorrelationID: "1",
 			ShortURL:      baseUrl + "/" + "code1",
@@ -373,8 +373,8 @@ func TestCreateUrlBatch_RetryOnBatchConflict(t *testing.T) {
 	assert.Equal(t, expected, resp)
 }
 
-func TestCreateUrlBatch_RepositoryError(t *testing.T) {
-	req := []CreateUrlBatchRequest{
+func TestCreateURLBatch_RepositoryError(t *testing.T) {
+	req := []CreateURLBatchRequest{
 		{
 			CorrelationID: "1",
 			OriginalURL:   "https://google.com",
@@ -392,13 +392,13 @@ func TestCreateUrlBatch_RepositoryError(t *testing.T) {
 	mockGen.EXPECT().Generate(alphabet, size).Return("BEzF9iSF", nil)
 
 	svc := New(mockRepo, mockGen, baseUrl, validator.New(), log)
-	_, err = svc.CreateUrlBatch(context.Background(), req, uid.String())
+	_, err = svc.CreateURLBatch(context.Background(), req, uid.String())
 
 	require.Contains(t, err.Error(), "repository create")
 }
 
-func TestCreateUrlBatch_GeneratorError(t *testing.T) {
-	req := []CreateUrlBatchRequest{
+func TestCreateURLBatch_GeneratorError(t *testing.T) {
+	req := []CreateURLBatchRequest{
 		{
 			CorrelationID: "1",
 			OriginalURL:   "https://google.com",
@@ -415,12 +415,12 @@ func TestCreateUrlBatch_GeneratorError(t *testing.T) {
 	mockGen.EXPECT().Generate(alphabet, size).Return("", errors.New("error"))
 
 	svc := New(mockRepo, mockGen, baseUrl, validator.New(), log)
-	_, err = svc.CreateUrlBatch(context.Background(), req, uid.String())
+	_, err = svc.CreateURLBatch(context.Background(), req, uid.String())
 	require.Contains(t, err.Error(), "generator generate")
 }
 
-func TestCreateUrlBatch_InvalidURL(t *testing.T) {
-	req := []CreateUrlBatchRequest{
+func TestCreateURLBatch_InvalidURL(t *testing.T) {
+	req := []CreateURLBatchRequest{
 		{
 			CorrelationID: "1",
 			OriginalURL:   "abrakadabra",
@@ -436,13 +436,13 @@ func TestCreateUrlBatch_InvalidURL(t *testing.T) {
 
 	svc := New(mockRepo, mockGen, baseUrl, validator.New(), log)
 
-	_, err = svc.CreateUrlBatch(context.Background(), req, uid.String())
+	_, err = svc.CreateURLBatch(context.Background(), req, uid.String())
 	require.ErrorIs(t, err, ErrIncorrectUrl)
 }
 
-func TestCreateUrlBatch_Success(t *testing.T) {
+func TestCreateURLBatch_Success(t *testing.T) {
 
-	req := []CreateUrlBatchRequest{
+	req := []CreateURLBatchRequest{
 		{
 			CorrelationID: "1",
 			OriginalURL:   "https://google.com",
@@ -464,21 +464,21 @@ func TestCreateUrlBatch_Success(t *testing.T) {
 	mockGen.EXPECT().Generate(alphabet, size).Return("EFGH5678", nil).Once()
 
 	mockRepo.EXPECT().
-		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedUrl) bool {
+		CreateBatch(mock.Anything, mock.MatchedBy(func(batch []model.ShortenedURL) bool {
 			return len(batch) == 2 &&
-				batch[0].OriginalUrl == "https://google.com" &&
+				batch[0].OriginalURL == "https://google.com" &&
 				batch[0].ShortCode == "ABCD1234" &&
-				batch[1].OriginalUrl == "https://github.com" &&
+				batch[1].OriginalURL == "https://github.com" &&
 				batch[1].ShortCode == "EFGH5678"
 		})).
 		Return(nil)
 
 	svc := New(mockRepo, mockGen, baseUrl, validator.New(), log)
 
-	result, err := svc.CreateUrlBatch(context.Background(), req, uid.String())
+	result, err := svc.CreateURLBatch(context.Background(), req, uid.String())
 	require.NoError(t, err)
 
-	expectedResp := []CreateUrlBatchResponse{
+	expectedResp := []CreateURLBatchResponse{
 		{
 			CorrelationID: "1",
 			ShortURL:      baseUrl + "/" + "ABCD1234",
@@ -495,7 +495,7 @@ func TestCreateUrlBatch_Success(t *testing.T) {
 	}
 }
 
-func TestCreateShortUrl_IncorrectUrl(t *testing.T) {
+func TestCreateShortURL_IncorrectUrl(t *testing.T) {
 	testcases := []struct {
 		name        string
 		url         string
@@ -526,14 +526,14 @@ func TestCreateShortUrl_IncorrectUrl(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			svc := New(mockRepo, mockGen, baseUrl, validator.New(), logger)
 
-			result, err := svc.CreateShortUrl(context.Background(), test.url, uid.String())
+			result, err := svc.CreateShortURL(context.Background(), test.url, uid.String())
 			assert.Empty(t, result)
 			assert.ErrorIs(t, err, test.expectedErr)
 		})
 	}
 }
 
-func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
+func TestGetOriginalURL_UrlNotExists(t *testing.T) {
 	mockRepo := NewMockURLRepository(t)
 	mockGen := NewMockGenerator(t)
 	logger := slog.New(
@@ -546,12 +546,12 @@ func TestGetOriginalUrl_UrlNotExists(t *testing.T) {
 
 	svc := New(mockRepo, mockGen, baseUrl, validator.New(), logger)
 
-	result, err := svc.GetOriginalUrl(context.Background(), "fKM29FzE")
+	result, err := svc.GetOriginalURL(context.Background(), "fKM29FzE")
 	assert.Empty(t, result)
 	assert.ErrorIs(t, err, ErrUrlDoesNotExists)
 }
 
-func TestCreateShortUrl_ConflictRetry(t *testing.T) {
+func TestCreateShortURL_ConflictRetry(t *testing.T) {
 
 	mockRepo := NewMockURLRepository(t)
 	mockGenerator := NewMockGenerator(t)
@@ -570,9 +570,9 @@ func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 	mockRepo.EXPECT().
 		Create(
 			mock.Anything,
-			mock.MatchedBy(func(u model.ShortenedUrl) bool {
+			mock.MatchedBy(func(u model.ShortenedURL) bool {
 				return u.ShortCode == "ZEFIRMOY" &&
-					u.OriginalUrl == "https://original.url"
+					u.OriginalURL == "https://original.url"
 			}),
 		).
 		Return(urlrepo.ErrConflictShortCode).
@@ -580,9 +580,9 @@ func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 	mockRepo.EXPECT().
 		Create(
 			mock.Anything,
-			mock.MatchedBy(func(u model.ShortenedUrl) bool {
+			mock.MatchedBy(func(u model.ShortenedURL) bool {
 				return u.ShortCode == "BULOCHKA" &&
-					u.OriginalUrl == "https://original.url"
+					u.OriginalURL == "https://original.url"
 			}),
 		).
 		Return(nil).
@@ -595,13 +595,13 @@ func TestCreateShortUrl_ConflictRetry(t *testing.T) {
 
 	require.NotEmpty(t, expectedUrl)
 
-	result, err := svc.CreateShortUrl(context.Background(), "https://original.url", uid.String())
+	result, err := svc.CreateShortURL(context.Background(), "https://original.url", uid.String())
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedUrl, result)
 }
 
-func TestGetOriginalUrl_ContextCanceled(t *testing.T) {
+func TestGetOriginalURL_ContextCanceled(t *testing.T) {
 	// Params
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -617,11 +617,11 @@ func TestGetOriginalUrl_ContextCanceled(t *testing.T) {
 
 	svc := New(mockRepo, mockGen, baseUrl, validator.New(), logger)
 
-	result, err := svc.GetOriginalUrl(ctx, "shortCode")
+	result, err := svc.GetOriginalURL(ctx, "shortCode")
 	assert.Empty(t, result)
 	assert.ErrorIs(t, err, context.Canceled)
 }
-func TestCreateShortUrl_ContextCanceled(t *testing.T) {
+func TestCreateShortURL_ContextCanceled(t *testing.T) {
 	// Params
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -644,12 +644,12 @@ func TestCreateShortUrl_ContextCanceled(t *testing.T) {
 
 	svc := New(mockRepo, mockGen, baseUrl, validator.New(), logger)
 
-	result, err := svc.CreateShortUrl(ctx, "anything", uid.String())
+	result, err := svc.CreateShortURL(ctx, "anything", uid.String())
 	assert.Empty(t, result)
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
-func TestGetOriginalUrl_Success(t *testing.T) {
+func TestGetOriginalURL_Success(t *testing.T) {
 	// Params
 	expectedUrl := "https://google.com"
 
@@ -665,15 +665,15 @@ func TestGetOriginalUrl_Success(t *testing.T) {
 
 	svc := New(mockRep, mockGen, baseUrl, validator.New(), logger)
 
-	originalUrl, err := svc.GetOriginalUrl(context.Background(), "FLeq19fl")
+	OriginalURL, err := svc.GetOriginalURL(context.Background(), "FLeq19fl")
 	require.NoError(t, err)
 
-	assert.Equal(t, expectedUrl, originalUrl)
-	_, err = url.ParseRequestURI(originalUrl)
+	assert.Equal(t, expectedUrl, OriginalURL)
+	_, err = url.ParseRequestURI(OriginalURL)
 	assert.NoError(t, err)
 }
 
-func TestCreateShortUrl_Success(t *testing.T) {
+func TestCreateShortURL_Success(t *testing.T) {
 	// Params
 	testUrl := "https://google.com"
 
@@ -693,10 +693,10 @@ func TestCreateShortUrl_Success(t *testing.T) {
 
 	svc := New(mockRep, mockGen, baseUrl, validator.New(), logger)
 
-	shortedUrl, err := svc.CreateShortUrl(context.Background(), testUrl, uid.String())
+	ShortedURL, err := svc.CreateShortURL(context.Background(), testUrl, uid.String())
 	require.NoError(t, err)
 
-	assert.NotEmpty(t, shortedUrl)
-	_, err = url.ParseRequestURI(shortedUrl)
+	assert.NotEmpty(t, ShortedURL)
+	_, err = url.ParseRequestURI(ShortedURL)
 	assert.NoError(t, err)
 }

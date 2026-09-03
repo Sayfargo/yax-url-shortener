@@ -51,11 +51,11 @@ func TestGetURLs_Success(t *testing.T) {
 	userUUID, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	shortenedUrl := []model.ShortenedUrl{
+	ShortenedURL := []model.ShortenedURL{
 		{
 			UUID:        urlUUID,
 			ShortCode:   "short-code",
-			OriginalUrl: "original-url",
+			OriginalURL: "original-url",
 			UserID:      userUUID,
 		},
 	}
@@ -67,17 +67,17 @@ func TestGetURLs_Success(t *testing.T) {
 	_, err = testPool.Exec(
 		ctx,
 		queryCreate,
-		shortenedUrl[0].UUID,
-		shortenedUrl[0].ShortCode,
-		shortenedUrl[0].OriginalUrl,
-		shortenedUrl[0].UserID,
+		ShortenedURL[0].UUID,
+		ShortenedURL[0].ShortCode,
+		ShortenedURL[0].OriginalURL,
+		ShortenedURL[0].UserID,
 	)
 	require.NoError(t, err)
 
 	result, err := repo.GetURLs(ctx, userUUID)
 	require.NoError(t, err)
 
-	require.ElementsMatch(t, shortenedUrl, result)
+	require.ElementsMatch(t, ShortenedURL, result)
 }
 
 func TestCreateBatch_Success(t *testing.T) {
@@ -85,28 +85,28 @@ func TestCreateBatch_Success(t *testing.T) {
 	ctx := context.Background()
 	repo := newRepo(t)
 
-	shortenedUrls := []model.ShortenedUrl{
+	ShortenedURLs := []model.ShortenedURL{
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "FaE9R129",
-			OriginalUrl: "https://google.com",
+			OriginalURL: "https://google.com",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "RbE9z121",
-			OriginalUrl: "https://github.com",
+			OriginalURL: "https://github.com",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "zBA12Hp1",
-			OriginalUrl: "https://yandex.ru",
+			OriginalURL: "https://yandex.ru",
 		},
 	}
 
-	err := repo.CreateBatch(ctx, shortenedUrls)
+	err := repo.CreateBatch(ctx, ShortenedURLs)
 	require.NoError(t, err)
 
-	gotUrls := make([]model.ShortenedUrl, 0, len(shortenedUrls))
+	gotUrls := make([]model.ShortenedURL, 0, len(ShortenedURLs))
 
 	query := `SELECT uuid, short_code, original_url FROM shortened_urls`
 
@@ -116,9 +116,9 @@ func TestCreateBatch_Success(t *testing.T) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var url model.ShortenedUrl
+		var url model.ShortenedURL
 
-		err = rows.Scan(&url.UUID, &url.ShortCode, &url.OriginalUrl)
+		err = rows.Scan(&url.UUID, &url.ShortCode, &url.OriginalURL)
 		require.NoError(t, err)
 
 		gotUrls = append(gotUrls, url)
@@ -127,8 +127,8 @@ func TestCreateBatch_Success(t *testing.T) {
 	err = rows.Err()
 	require.NoError(t, err)
 
-	require.Len(t, gotUrls, len(shortenedUrls))
-	require.ElementsMatch(t, shortenedUrls, gotUrls)
+	require.Len(t, gotUrls, len(ShortenedURLs))
+	require.ElementsMatch(t, ShortenedURLs, gotUrls)
 }
 
 func TestCreateBatch_Rollback(t *testing.T) {
@@ -144,25 +144,25 @@ func TestCreateBatch_Rollback(t *testing.T) {
 	_, err := testPool.Exec(ctx, query, uuid.New(), conflictedShortCode, existsUrl)
 	require.NoError(t, err)
 
-	shortenedUrls := []model.ShortenedUrl{
+	ShortenedURLs := []model.ShortenedURL{
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "Ppr22Zp1",
-			OriginalUrl: "https://github.com",
+			OriginalURL: "https://github.com",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "zBA12Hp1",
-			OriginalUrl: "https://yandex.ru",
+			OriginalURL: "https://yandex.ru",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   conflictedShortCode,
-			OriginalUrl: "https://google.com",
+			OriginalURL: "https://google.com",
 		},
 	}
 
-	err = repo.CreateBatch(ctx, shortenedUrls)
+	err = repo.CreateBatch(ctx, ShortenedURLs)
 	require.Error(t, err)
 
 	queryCheck := `SELECT COUNT(*) FROM shortened_urls`
@@ -197,25 +197,25 @@ func TestCreateBatch_ConflictShortCodeInDB(t *testing.T) {
 	_, err := testPool.Exec(ctx, query, uuid.New(), conflictedShortCode, "https://youtube.com")
 	require.NoError(t, err)
 
-	shortenedUrls := []model.ShortenedUrl{
+	ShortenedURLs := []model.ShortenedURL{
 		{
 			UUID:        uuid.New(),
 			ShortCode:   conflictedShortCode,
-			OriginalUrl: "https://google.com",
+			OriginalURL: "https://google.com",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "RbE9z121",
-			OriginalUrl: "https://github.com",
+			OriginalURL: "https://github.com",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "zBA12Hp1",
-			OriginalUrl: "https://yandex.ru",
+			OriginalURL: "https://yandex.ru",
 		},
 	}
 
-	err = repo.CreateBatch(ctx, shortenedUrls)
+	err = repo.CreateBatch(ctx, ShortenedURLs)
 	var batchErr *BatchConflictError
 	require.ErrorAs(t, err, &batchErr)
 	require.ErrorIs(t, batchErr.Err, ErrConflictShortCode)
@@ -230,25 +230,25 @@ func TestCreateBatch_ConflictShortCodeInBatch(t *testing.T) {
 	conflictedShortCode := "FaE9R129"
 	conflictedIdx := 1
 
-	shortenedUrls := []model.ShortenedUrl{
+	ShortenedURLs := []model.ShortenedURL{
 		{
 			UUID:        uuid.New(),
 			ShortCode:   conflictedShortCode,
-			OriginalUrl: "https://google.com",
+			OriginalURL: "https://google.com",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   conflictedShortCode,
-			OriginalUrl: "https://github.com",
+			OriginalURL: "https://github.com",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "zBA12Hp1",
-			OriginalUrl: "https://yandex.ru",
+			OriginalURL: "https://yandex.ru",
 		},
 	}
 
-	err := repo.CreateBatch(ctx, shortenedUrls)
+	err := repo.CreateBatch(ctx, ShortenedURLs)
 	var batchErr *BatchConflictError
 	require.ErrorAs(t, err, &batchErr)
 	require.ErrorIs(t, batchErr.Err, ErrConflictShortCode)
@@ -271,25 +271,25 @@ func TestCreateBatch_ContextCanceled(t *testing.T) {
 
 	repo := newRepo(t)
 
-	shortenedUrls := []model.ShortenedUrl{
+	ShortenedURLs := []model.ShortenedURL{
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "Ppr22Zp1",
-			OriginalUrl: "https://github.com",
+			OriginalURL: "https://github.com",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "zBA12Hp1",
-			OriginalUrl: "https://yandex.ru",
+			OriginalURL: "https://yandex.ru",
 		},
 		{
 			UUID:        uuid.New(),
 			ShortCode:   "Far14Pp1",
-			OriginalUrl: "https://google.com",
+			OriginalURL: "https://google.com",
 		},
 	}
 
-	err := repo.CreateBatch(ctx, shortenedUrls)
+	err := repo.CreateBatch(ctx, ShortenedURLs)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -347,13 +347,13 @@ func TestCreate_Success(t *testing.T) {
 	expectedShortCode := "HaE9R121"
 	expectedUrl := "https://github.com"
 
-	shortenedUrl := model.ShortenedUrl{
+	ShortenedURL := model.ShortenedURL{
 		UUID:        expectedUUID,
 		ShortCode:   expectedShortCode,
-		OriginalUrl: expectedUrl,
+		OriginalURL: expectedUrl,
 	}
 
-	err := repo.Create(ctx, shortenedUrl)
+	err := repo.Create(ctx, ShortenedURL)
 	require.NoError(t, err)
 
 	query := `SELECT uuid, short_code, original_url FROM shortened_urls WHERE short_code = $1`
@@ -381,18 +381,18 @@ func TestCreate_DuplicateOriginalURL(t *testing.T) {
 	ShortCode := "HaE9R121"
 	URL := "https://github.com"
 
-	shortenedUrl := model.ShortenedUrl{
+	ShortenedURL := model.ShortenedURL{
 		UUID:        UUID,
 		ShortCode:   ShortCode,
-		OriginalUrl: URL,
+		OriginalURL: URL,
 	}
 
-	err := repo.Create(ctx, shortenedUrl)
+	err := repo.Create(ctx, ShortenedURL)
 	require.NoError(t, err)
 
-	err = repo.Create(ctx, shortenedUrl)
+	err = repo.Create(ctx, ShortenedURL)
 
-	var conflictOrigURL *OriginalUrlConflictError
+	var conflictOrigURL *OriginalURLConflictError
 	require.ErrorAs(t, err, &conflictOrigURL)
 	require.Equal(t, ShortCode, conflictOrigURL.ShortCode)
 }
@@ -404,22 +404,22 @@ func TestCreate_ConflictShortCode(t *testing.T) {
 
 	conflictedShortCode := "HaE9R121"
 
-	shortenedUrl := model.ShortenedUrl{
+	ShortenedURL := model.ShortenedURL{
 		UUID:        uuid.New(),
 		ShortCode:   conflictedShortCode,
-		OriginalUrl: "https://github.com",
+		OriginalURL: "https://github.com",
 	}
 
-	err := repo.Create(ctx, shortenedUrl)
+	err := repo.Create(ctx, ShortenedURL)
 	require.NoError(t, err)
 
-	shortenedUrl1 := model.ShortenedUrl{
+	ShortenedURL1 := model.ShortenedURL{
 		UUID:        uuid.New(),
 		ShortCode:   conflictedShortCode,
-		OriginalUrl: "https://google.com",
+		OriginalURL: "https://google.com",
 	}
 
-	err = repo.Create(ctx, shortenedUrl1)
+	err = repo.Create(ctx, ShortenedURL1)
 	require.ErrorIs(t, err, ErrConflictShortCode)
 }
 
@@ -430,13 +430,13 @@ func TestCreate_ContextCanceled(t *testing.T) {
 
 	repo := newRepo(t)
 
-	shortenedUrl := model.ShortenedUrl{
+	ShortenedURL := model.ShortenedURL{
 		UUID:        uuid.New(),
 		ShortCode:   "HaE9R121",
-		OriginalUrl: "https://google.com",
+		OriginalURL: "https://google.com",
 	}
 
-	err := repo.Create(ctx, shortenedUrl)
+	err := repo.Create(ctx, ShortenedURL)
 	require.ErrorIs(t, err, context.Canceled)
 
 }
