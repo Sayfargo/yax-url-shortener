@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/ctxkeys"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -28,7 +29,7 @@ func TestGetURLs_UnexpectedError(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc.EXPECT().GetUserURLs(
 		mock.Anything,
@@ -56,7 +57,7 @@ func TestGetURLs_NoURLs(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc.EXPECT().GetUserURLs(
 		mock.Anything,
@@ -86,7 +87,7 @@ func TestGetURLs_Success(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc.EXPECT().GetUserURLs(
 		mock.Anything,
@@ -147,7 +148,7 @@ func TestCreate_OriginalURLConflict(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc.EXPECT().
 		CreateShortUrl(mock.Anything, "https://google.com", mock.Anything).
@@ -189,7 +190,7 @@ func TestShorten_OriginalURLConflict(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockUrlShortener(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -251,7 +252,7 @@ func TestShortenBatch_EmptyBatch(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockUrlShortener(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -299,7 +300,7 @@ func TestShortenBatch_UnexpectedError(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockUrlShortener(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -345,7 +346,7 @@ func TestShortenBatch_CollisionLimitExceeded(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockUrlShortener(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -394,7 +395,7 @@ func TestShortenBatch_IncorrectURL(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockUrlShortener(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -435,7 +436,7 @@ func TestShortenBatch_TooLargeBodyRequest(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	require.Greater(t, len(payload), maxBodySize)
 
@@ -468,7 +469,7 @@ func TestShortenBatch_InvalidJSON(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockUrlShortener(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -523,7 +524,7 @@ func TestShortenBatch_Success(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockUrlShortener(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -579,7 +580,7 @@ func TestCreate_ErrorResponses(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
@@ -731,7 +732,7 @@ func TestCreate_Success(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockUrlShortener(t)
 	mockSvc.EXPECT().CreateShortUrl(mock.Anything, url, mock.Anything).Return(expected, nil)
@@ -770,7 +771,7 @@ func TestShorten_ErrorResponses(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
@@ -818,7 +819,7 @@ func TestShorten_CreateShortUrl(t *testing.T) {
 	uid, err := uuid.NewUUID()
 	require.NoError(t, err)
 
-	ctx := context.WithValue(context.Background(), "userID", uid.String())
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockUrlShortener(t)
 	logger := slog.New(
