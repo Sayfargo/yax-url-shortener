@@ -400,7 +400,7 @@ func TestShortenBatch_IncorrectURL(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	mockSvc.EXPECT().CreateURLBatch(mock.Anything, mock.Anything, mock.Anything).Return(nil, service.ErrIncorrectUrl)
+	mockSvc.EXPECT().CreateURLBatch(mock.Anything, mock.Anything, mock.Anything).Return(nil, service.ErrIncorrectURL)
 
 	data, err := json.Marshal(request)
 	require.NoError(t, err)
@@ -573,7 +573,7 @@ func TestCreate_ErrorResponses(t *testing.T) {
 		serviceError error
 	}{
 		{name: "Collision limit exceeded", expectedCode: http.StatusInternalServerError, serviceError: service.ErrShortCodeCollisionLimitExceeded},
-		{name: "Incorrect URL", expectedCode: http.StatusBadRequest, serviceError: service.ErrIncorrectUrl},
+		{name: "Incorrect URL", expectedCode: http.StatusBadRequest, serviceError: service.ErrIncorrectURL},
 		{name: "Unexpected error", expectedCode: http.StatusInternalServerError, serviceError: errors.New("unexpected error")},
 	}
 
@@ -614,7 +614,7 @@ func TestRedirect_ErrorResponses(t *testing.T) {
 		expectedCode int
 		serviceError error
 	}{
-		{name: "URL does not exists", shortCode: "DnmPeRZF", expectedCode: http.StatusNotFound, serviceError: service.ErrUrlDoesNotExists},
+		{name: "URL does not exists", shortCode: "DnmPeRZF", expectedCode: http.StatusNotFound, serviceError: service.ErrURLDoesNotExists},
 		{name: "Unexpected error", shortCode: "DnmPeRZF", expectedCode: http.StatusInternalServerError, serviceError: errors.New("unexpected error")},
 	}
 
@@ -764,7 +764,7 @@ func TestShorten_ErrorResponses(t *testing.T) {
 		serviceError error
 	}{
 		{name: "Collision limit exceeded", expectedCode: http.StatusInternalServerError, serviceError: service.ErrShortCodeCollisionLimitExceeded},
-		{name: "Incorrect URL", expectedCode: http.StatusBadRequest, serviceError: service.ErrIncorrectUrl},
+		{name: "Incorrect URL", expectedCode: http.StatusBadRequest, serviceError: service.ErrIncorrectURL},
 		{name: "Unexpected error", expectedCode: http.StatusInternalServerError, serviceError: errors.New("unexpected error")},
 	}
 

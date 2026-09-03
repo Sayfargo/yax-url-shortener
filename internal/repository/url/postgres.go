@@ -67,9 +67,9 @@ func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string
 
 	query := `SELECT original_url FROM shortened_urls WHERE short_code = $1`
 
-	var origUrl string
+	var origURL string
 
-	err := pr.pool.QueryRow(ctx, query, shortCode).Scan(&origUrl)
+	err := pr.pool.QueryRow(ctx, query, shortCode).Scan(&origURL)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", ErrNotExists
@@ -77,7 +77,7 @@ func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string
 		return "", fmt.Errorf("query row: %w", err)
 	}
 
-	return origUrl, nil
+	return origURL, nil
 
 }
 

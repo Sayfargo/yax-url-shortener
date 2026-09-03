@@ -156,7 +156,7 @@ func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, context.Canceled) {
 			h.log.Debug("create short url canceled by client")
 			w.WriteHeader(499)
-		} else if errors.Is(err, service.ErrIncorrectUrl) {
+		} else if errors.Is(err, service.ErrIncorrectURL) {
 
 			h.log.Info(
 				"incorrect url request",
@@ -231,7 +231,7 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 
 	OriginalURL, err := h.service.GetOriginalURL(r.Context(), shortCode)
 	if err != nil {
-		if errors.Is(err, service.ErrUrlDoesNotExists) {
+		if errors.Is(err, service.ErrURLDoesNotExists) {
 
 			h.log.Info(
 				"url does not exists",
@@ -312,7 +312,7 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 
 			http.Error(w, "failed to process request, please try again", http.StatusInternalServerError)
 			return
-		case errors.Is(err, service.ErrIncorrectUrl):
+		case errors.Is(err, service.ErrIncorrectURL):
 			h.log.Info(
 				"incorrect url request",
 				"err", err,
@@ -394,7 +394,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 			http.Error(w, "failed to process request, please try again", http.StatusInternalServerError)
 			return
-		case errors.Is(err, service.ErrIncorrectUrl):
+		case errors.Is(err, service.ErrIncorrectURL):
 			h.log.Info(
 				"incorrect url request",
 				"err", err,

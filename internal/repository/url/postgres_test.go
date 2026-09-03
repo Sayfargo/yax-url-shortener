@@ -106,7 +106,7 @@ func TestCreateBatch_Success(t *testing.T) {
 	err := repo.CreateBatch(ctx, ShortenedURLs)
 	require.NoError(t, err)
 
-	gotUrls := make([]model.ShortenedURL, 0, len(ShortenedURLs))
+	gotURLs := make([]model.ShortenedURL, 0, len(ShortenedURLs))
 
 	query := `SELECT uuid, short_code, original_url FROM shortened_urls`
 
@@ -121,14 +121,14 @@ func TestCreateBatch_Success(t *testing.T) {
 		err = rows.Scan(&url.UUID, &url.ShortCode, &url.OriginalURL)
 		require.NoError(t, err)
 
-		gotUrls = append(gotUrls, url)
+		gotURLs = append(gotURLs, url)
 	}
 
 	err = rows.Err()
 	require.NoError(t, err)
 
-	require.Len(t, gotUrls, len(ShortenedURLs))
-	require.ElementsMatch(t, ShortenedURLs, gotUrls)
+	require.Len(t, gotURLs, len(ShortenedURLs))
+	require.ElementsMatch(t, ShortenedURLs, gotURLs)
 }
 
 func TestCreateBatch_Rollback(t *testing.T) {
@@ -137,11 +137,11 @@ func TestCreateBatch_Rollback(t *testing.T) {
 	repo := newRepo(t)
 
 	conflictedShortCode := "FaE9R129"
-	existsUrl := "https://youtube.com"
+	existsURL := "https://youtube.com"
 
 	query := `INSERT INTO shortened_urls (uuid, short_code, original_url) VALUES ($1, $2, $3)`
 
-	_, err := testPool.Exec(ctx, query, uuid.New(), conflictedShortCode, existsUrl)
+	_, err := testPool.Exec(ctx, query, uuid.New(), conflictedShortCode, existsURL)
 	require.NoError(t, err)
 
 	ShortenedURLs := []model.ShortenedURL{
@@ -180,7 +180,7 @@ func TestCreateBatch_Rollback(t *testing.T) {
 
 	err = testPool.QueryRow(ctx, queryCheckRow, "FaE9R129").Scan(&url)
 	require.NoError(t, err)
-	require.Equal(t, existsUrl, url)
+	require.Equal(t, existsURL, url)
 
 }
 
@@ -299,7 +299,7 @@ func TestGet_Success(t *testing.T) {
 	repo := newRepo(t)
 
 	expectedShortCode := "FaE9R129"
-	expectedUrl := "https://google.com"
+	expectedURL := "https://google.com"
 
 	_, err := testPool.Exec(
 		ctx,
@@ -307,14 +307,14 @@ func TestGet_Success(t *testing.T) {
 		VALUES ($1, $2, $3)`,
 		uuid.New(),
 		expectedShortCode,
-		expectedUrl,
+		expectedURL,
 	)
 	require.NoError(t, err)
 
 	url, err := repo.Get(ctx, expectedShortCode)
 	require.NoError(t, err)
 
-	require.Equal(t, expectedUrl, url)
+	require.Equal(t, expectedURL, url)
 }
 
 func TestGet_NotFound(t *testing.T) {
@@ -345,12 +345,12 @@ func TestCreate_Success(t *testing.T) {
 
 	expectedUUID := uuid.New()
 	expectedShortCode := "HaE9R121"
-	expectedUrl := "https://github.com"
+	expectedURL := "https://github.com"
 
 	ShortenedURL := model.ShortenedURL{
 		UUID:        expectedUUID,
 		ShortCode:   expectedShortCode,
-		OriginalURL: expectedUrl,
+		OriginalURL: expectedURL,
 	}
 
 	err := repo.Create(ctx, ShortenedURL)
@@ -361,15 +361,15 @@ func TestCreate_Success(t *testing.T) {
 	var (
 		gotUUID      uuid.UUID
 		gotShortCode string
-		gotUrl       string
+		gotURL       string
 	)
 
-	err = testPool.QueryRow(ctx, query, expectedShortCode).Scan(&gotUUID, &gotShortCode, &gotUrl)
+	err = testPool.QueryRow(ctx, query, expectedShortCode).Scan(&gotUUID, &gotShortCode, &gotURL)
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedUUID, gotUUID)
 	assert.Equal(t, expectedShortCode, gotShortCode)
-	assert.Equal(t, expectedUrl, gotUrl)
+	assert.Equal(t, expectedURL, gotURL)
 }
 
 func TestCreate_DuplicateOriginalURL(t *testing.T) {
@@ -392,9 +392,9 @@ func TestCreate_DuplicateOriginalURL(t *testing.T) {
 
 	err = repo.Create(ctx, ShortenedURL)
 
-	var conflictOrigURL *OriginalURLConflictError
-	require.ErrorAs(t, err, &conflictOrigURL)
-	require.Equal(t, ShortCode, conflictOrigURL.ShortCode)
+	var conflictorigURL *OriginalURLConflictError
+	require.ErrorAs(t, err, &conflictorigURL)
+	require.Equal(t, ShortCode, conflictorigURL.ShortCode)
 }
 
 func TestCreate_ConflictShortCode(t *testing.T) {

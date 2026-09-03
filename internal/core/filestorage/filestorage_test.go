@@ -104,7 +104,7 @@ func TestFileStorage_AppendAfterRead(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Внутри ReadURLs указатель свдигается на начало файла - читаем записи
+	// Внутри readURLs указатель свдигается на начало файла - читаем записи
 	results, err := fileStorage.ReadURLs()
 	require.NoError(t, err)
 
@@ -149,7 +149,7 @@ func TestFileStorage_InvalidPath(t *testing.T) {
 	assert.Nil(t, fs)
 }
 
-func TestFileStorage_ReadURLs(t *testing.T) {
+func TestFileStorage_readURLs(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "storage.json")
 
 	cfg := &Config{
@@ -187,7 +187,7 @@ func TestFileStorage_ReadURLs(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// testing ReadURLs
+	// testing readURLs
 	results, err := fileStorage.ReadURLs()
 	require.NoError(t, err)
 
@@ -249,14 +249,14 @@ func TestFileStorage_WriteURL(t *testing.T) {
 
 		line := scanner.Bytes()
 
-		var readUrl model.ShortenedURL
+		var readURL model.ShortenedURL
 
-		err := json.Unmarshal(line, &readUrl)
+		err := json.Unmarshal(line, &readURL)
 		assert.NoError(t, err)
 
-		assert.Equal(t, ShortenedURLs[lineCount].UUID, readUrl.UUID)
-		assert.Equal(t, ShortenedURLs[lineCount].ShortCode, readUrl.ShortCode)
-		assert.Equal(t, ShortenedURLs[lineCount].OriginalURL, readUrl.OriginalURL)
+		assert.Equal(t, ShortenedURLs[lineCount].UUID, readURL.UUID)
+		assert.Equal(t, ShortenedURLs[lineCount].ShortCode, readURL.ShortCode)
+		assert.Equal(t, ShortenedURLs[lineCount].OriginalURL, readURL.OriginalURL)
 
 		lineCount++
 	}

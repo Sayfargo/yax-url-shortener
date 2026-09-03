@@ -166,7 +166,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	expectedStatus := http.StatusOK
 	expectedBody := "Hello, World"
 	expectedSize := int64((len(expectedBody)))
-	expectedUri := "/api/v1"
+	expectedURI := "/api/v1"
 	expectedMethod := http.MethodGet
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Имитация работы
@@ -179,7 +179,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	middleware := Logging(mockLogger)
 	testHandler := middleware(nextHandler)
 
-	req := httptest.NewRequest(expectedMethod, expectedUri, nil)
+	req := httptest.NewRequest(expectedMethod, expectedURI, nil)
 	rec := httptest.NewRecorder()
 
 	testHandler.ServeHTTP(rec, req)
@@ -188,7 +188,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	assert.Equal(t, expectedBody, rec.Body.String())
 
 	assert.Equal(t, "HTTP Request done", mockLogger.Message)
-	assert.Equal(t, expectedUri, mockLogger.Attrs["URI"].(string))
+	assert.Equal(t, expectedURI, mockLogger.Attrs["URI"].(string))
 	assert.Equal(t, expectedMethod, mockLogger.Attrs["Method"].(string))
 	assert.Equal(t, int64(expectedStatus), mockLogger.Attrs["status"].(int64))
 	assert.Equal(t, expectedSize, mockLogger.Attrs["size"].(int64))

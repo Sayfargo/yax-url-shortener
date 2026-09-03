@@ -55,9 +55,9 @@ func New(
 }
 
 var (
-	ErrUrlDoesNotExists                = errors.New("requested URL code does not exists")
+	ErrURLDoesNotExists                = errors.New("requested URL code does not exists")
 	ErrShortCodeCollisionLimitExceeded = errors.New("failed to generate short code after all attempts")
-	ErrIncorrectUrl                    = errors.New("incorrect url")
+	ErrIncorrectURL                    = errors.New("incorrect url")
 	ErrCorruptedData                   = errors.New("cached data is corrupted or invalid")
 	ErrEmptyBatch                      = errors.New("empty batch")
 	ErrOriginalURLConflict             = errors.New("original url conflict")
@@ -134,7 +134,7 @@ func (s *URLShortenerService) CreateURLBatch(ctx context.Context, req []CreateUR
 			return nil, fmt.Errorf(
 				"got incorrect url on row #%d with id %s: %w",
 				i+1, item.CorrelationID,
-				ErrIncorrectUrl,
+				ErrIncorrectURL,
 			)
 		}
 
@@ -203,7 +203,7 @@ func (s *URLShortenerService) GetOriginalURL(ctx context.Context, shortCode stri
 	OriginalURL, err := s.repo.Get(ctx, shortCode)
 	if err != nil {
 		if errors.Is(err, urlrepo.ErrNotExists) {
-			return "", ErrUrlDoesNotExists
+			return "", ErrURLDoesNotExists
 		} else if errors.Is(err, urlrepo.ErrUnexpectedType) {
 			return "", ErrCorruptedData
 		}
@@ -225,7 +225,7 @@ func (s *URLShortenerService) CreateShortURL(ctx context.Context, url, uid strin
 	}
 
 	if err := s.validate.Var(url, "http_url"); err != nil {
-		return "", ErrIncorrectUrl
+		return "", ErrIncorrectURL
 	}
 
 	for attempt := 0; attempt < 3; attempt++ {
@@ -244,7 +244,7 @@ func (s *URLShortenerService) CreateShortURL(ctx context.Context, url, uid strin
 
 		err = s.repo.Create(ctx, ShortenedURL)
 
-		var origUrlConflictErr *urlrepo.OriginalURLConflictError
+		var origURLConflictErr *urlrepo.OriginalURLConflictError
 
 		switch {
 		case err == nil:
@@ -260,9 +260,9 @@ func (s *URLShortenerService) CreateShortURL(ctx context.Context, url, uid strin
 				"attempt", attempt+1,
 			)
 			continue
-		case errors.As(err, &origUrlConflictErr):
+		case errors.As(err, &origURLConflictErr):
 
-			return s.buildShortedURL(origUrlConflictErr.ShortCode), ErrOriginalURLConflict
+			return s.buildShortedURL(origURLConflictErr.ShortCode), ErrOriginalURLConflict
 
 		default:
 
