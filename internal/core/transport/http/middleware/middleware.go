@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/ctxkeys"
 	httprequest "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/request"
 	httpreponse "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/response"
 	mycrypto "github.com/Sayfargo/yax-url-shortener/pkg/crypto"
@@ -14,12 +15,6 @@ import (
 )
 
 type Middleware func(http.Handler) http.Handler
-
-type contextKey string
-
-const (
-	userIDKey contextKey = "userID"
-)
 
 type Logger interface {
 	Info(msg string, args ...any)
@@ -78,7 +73,7 @@ func Auth(secretKey string) Middleware {
 				})
 			}
 
-			ctx := context.WithValue(r.Context(), userIDKey, uid)
+			ctx := context.WithValue(r.Context(), ctxkeys.UserIDKey, uid)
 			next.ServeHTTP(w, r.WithContext(ctx))
 
 		})

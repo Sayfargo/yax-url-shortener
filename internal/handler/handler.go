@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/ctxkeys"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -422,11 +423,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getUserID(ctx context.Context) (string, bool) {
-	uid, ok := ctx.Value("userID").(string)
+	uid, ok := ctx.Value(ctxkeys.UserIDKey).(string)
 	if !ok {
 		h.log.Error(
 			"failed to get user ID from context",
-			"actual_type", fmt.Sprintf("%T", ctx.Value("userID")),
+			"actual_type", fmt.Sprintf("%T", ctx.Value(ctxkeys.UserIDKey)),
 		)
 	}
 	return uid, ok
