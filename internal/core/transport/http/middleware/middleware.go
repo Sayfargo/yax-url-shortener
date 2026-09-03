@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -8,12 +9,80 @@ import (
 
 	httprequest "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/request"
 	httpreponse "github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/response"
+	mycrypto "github.com/Sayfargo/yax-url-shortener/pkg/crypto"
+	"github.com/google/uuid"
 )
 
 type Middleware func(http.Handler) http.Handler
 
+type contextKey string
+
+const (
+	userIDKey contextKey = "userID"
+)
+
 type Logger interface {
 	Info(msg string, args ...any)
+}
+
+func Auth(secretKey string) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+			var (
+				uid    string
+				exists = false
+			)
+
+			cookie, err := r.Cookie("uid")
+			if err == nil {
+				if val, err := mycrypto.DecryptAESGCM(cookie.Value, secretKey); err == nil {
+					uid = val
+					exists = true
+				} else {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+			}
+
+			if !exists {
+				uuid, err := uuid.NewUUID()
+				if err != nil {
+					http.Error(
+						w,
+						http.StatusText(http.StatusInternalServerError),
+						http.StatusInternalServerError,
+					)
+					return
+				}
+
+				uid = uuid.String()
+
+				encyptedVal, err := mycrypto.EncryptAESGCM(uid, secretKey)
+				if err != nil {
+					http.Error(
+						w,
+						http.StatusText(http.StatusInternalServerError),
+						http.StatusInternalServerError,
+					)
+					return
+				}
+
+				http.SetCookie(w, &http.Cookie{
+					Name:     "uid",
+					Value:    encyptedVal,
+					Path:     "/",
+					HttpOnly: true,
+					SameSite: http.SameSiteLaxMode,
+					Expires:  time.Now().Add(time.Hour * 730),
+				})
+			}
+
+			ctx := context.WithValue(r.Context(), userIDKey, uid)
+			next.ServeHTTP(w, r.WithContext(ctx))
+
+		})
+	}
 }
 
 func Logging(log Logger) Middleware {
