@@ -8,6 +8,7 @@ import (
 
 	cache "github.com/Sayfargo/yax-url-shortener/internal/core/cache"
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
+	"github.com/google/uuid"
 )
 
 type CacheRepository struct {
@@ -21,6 +22,28 @@ func NewInMemoryRepo(cache *cache.Cache) *CacheRepository {
 		c:           cache,
 		originalMap: make(map[string]string),
 	}
+}
+
+func (r *CacheRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.ShortenedUrl, error) {
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	urls := make([]model.ShortenedUrl, 0, 32)
+
+	for _, val := range r.c.Snapshot() {
+		if rec, ok := val.(model.ShortenedUrl); ok {
+			if rec.UserID == uid {
+				urls = append(urls, rec)
+			}
+		} else {
+			return nil, ErrUnexpectedType
+		}
+	}
+
+	return urls, nil
+
 }
 
 func (r *CacheRepository) Get(ctx context.Context, shortCode string) (string, error) {

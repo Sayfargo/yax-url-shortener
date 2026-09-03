@@ -6,4 +6,5 @@ type ShortenedUrl struct {
 	UUID        uuid.UUID `json:"uuid"`
 	ShortCode   string    `json:"short_code"`
 	OriginalUrl string    `json:"original_url"`
+	UserID      uuid.UUID `json:"user_Id"`
 }

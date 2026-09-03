@@ -17,6 +17,7 @@ type URLRepository interface {
 	Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error
 	CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error
 	Get(ctx context.Context, shortCode string) (string, error)
+	GetURLs(ctx context.Context, uid uuid.UUID) ([]model.ShortenedUrl, error)
 }
 
 type Generator interface {
@@ -60,6 +61,7 @@ var (
 	ErrCorruptedData                   = errors.New("cached data is corrupted or invalid")
 	ErrEmptyBatch                      = errors.New("empty batch")
 	ErrOriginalURLConflict             = errors.New("original url conflict")
+	ErrURLsNotFound                    = errors.New("no URLs found for user")
 )
 
 const (
@@ -77,13 +79,51 @@ type CreateUrlBatchResponse struct {
 	ShortURL      string
 }
 
-func (s *UrlShortenerService) CreateUrlBatch(ctx context.Context, req []CreateUrlBatchRequest) ([]CreateUrlBatchResponse, error) {
+type GetURLsResponse struct {
+	ShortURL    string
+	OriginalURL string
+}
+
+func (s *UrlShortenerService) GetUserURLs(ctx context.Context, uid string) ([]GetURLsResponse, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	uidUUID, err := uuid.Parse(uid)
+	if err != nil {
+		return nil, fmt.Errorf("uuid from bytes: %w", err)
+	}
+
+	result, err := s.repo.GetURLs(ctx, uidUUID)
+	if err != nil {
+		if errors.Is(err, urlrepo.ErrNoRows) {
+			return nil, ErrURLsNotFound
+		}
+		return nil, fmt.Errorf("repository get URLs: %w", err)
+	}
+
+	response := make([]GetURLsResponse, len(result))
+
+	for i, u := range result {
+		response[i].ShortURL = s.buildShortedUrl(u.ShortCode)
+		response[i].OriginalURL = u.OriginalUrl
+	}
+
+	return response, nil
+}
+
+func (s *UrlShortenerService) CreateUrlBatch(ctx context.Context, req []CreateUrlBatchRequest, uid string) ([]CreateUrlBatchResponse, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 
 	if len(req) == 0 {
 		return nil, ErrEmptyBatch
+	}
+
+	uidUUID, err := uuid.Parse(uid)
+	if err != nil {
+		return nil, fmt.Errorf("uuid from bytes: %w", err)
 	}
 
 	shortenedUrls := make([]model.ShortenedUrl, len(req))
@@ -108,6 +148,7 @@ func (s *UrlShortenerService) CreateUrlBatch(ctx context.Context, req []CreateUr
 			UUID:        uuid.New(),
 			ShortCode:   shortCode,
 			OriginalUrl: item.OriginalURL,
+			UserID:      uidUUID,
 		}
 
 		resp[i] = CreateUrlBatchResponse{
@@ -173,9 +214,14 @@ func (s *UrlShortenerService) GetOriginalUrl(ctx context.Context, shortCode stri
 
 }
 
-func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (string, error) {
+func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url, uid string) (string, error) {
 	if ctx.Err() != nil {
 		return "", ctx.Err()
+	}
+
+	uidUUID, err := uuid.Parse(uid)
+	if err != nil {
+		return "", fmt.Errorf("uuid from bytes: %w", err)
 	}
 
 	if err := s.validate.Var(url, "http_url"); err != nil {
@@ -193,6 +239,7 @@ func (s *UrlShortenerService) CreateShortUrl(ctx context.Context, url string) (s
 			UUID:        uuid.New(),
 			ShortCode:   shortCode,
 			OriginalUrl: url,
+			UserID:      uidUUID,
 		}
 
 		err = s.repo.Create(ctx, shortenedUrl)
@@ -230,6 +277,6 @@ func (n *GoNanoIDGenerator) Generate(alphabet string, size int) (string, error) 
 	return gonanoid.Generate(alphabet, size)
 }
 
-func (s *UrlShortenerService) buildShortedUrl(shorCode string) string {
-	return fmt.Sprintf("%s/%s", s.baseURL, shorCode) // Example: http://localhost:8080/EiXk21Dz
+func (s *UrlShortenerService) buildShortedUrl(shortCode string) string {
+	return s.baseURL + "/" + shortCode // Example: http://localhost:8080/EiXk21Dz
 }

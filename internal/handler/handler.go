@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,9 +15,10 @@ import (
 )
 
 type UrlShortener interface {
-	CreateShortUrl(ctx context.Context, url string) (string, error)
-	CreateUrlBatch(ctx context.Context, req []service.CreateUrlBatchRequest) ([]service.CreateUrlBatchResponse, error)
+	CreateShortUrl(ctx context.Context, url, uid string) (string, error)
+	CreateUrlBatch(ctx context.Context, req []service.CreateUrlBatchRequest, uid string) ([]service.CreateUrlBatchResponse, error)
 	GetOriginalUrl(ctx context.Context, shortCode string) (string, error)
+	GetUserURLs(ctx context.Context, uid string) ([]service.GetURLsResponse, error)
 }
 
 type Handler struct {
@@ -39,13 +41,76 @@ func (h *Handler) Register(r chi.Router) {
 	r.Post("/", h.Create)
 	r.Post("/api/shorten", h.Shorten)
 	r.Post("/api/shorten/batch", h.ShortenBatch)
+	r.Get("/api/user/urls", h.GetURLs)
 	r.Get("/{id}", h.Redirect)
 	r.Get("/ping", h.Ping)
+}
+
+func (h *Handler) GetURLs(w http.ResponseWriter, r *http.Request) {
+
+	uid, ok := h.getUserID(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	result, err := h.service.GetUserURLs(r.Context(), uid)
+	if err != nil {
+		if errors.Is(err, service.ErrURLsNotFound) {
+			w.WriteHeader(http.StatusNoContent)
+		} else if errors.Is(err, context.Canceled) {
+			h.log.Debug("get URLs canceled by client")
+			w.WriteHeader(499)
+		} else {
+			h.log.Error(
+				"unexpected error",
+				"err", err,
+			)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	response := make([]GetURLsResponse, len(result))
+
+	for i, u := range result {
+		response[i].ShortURL = u.ShortURL
+		response[i].OriginalURL = u.OriginalURL
+	}
+
+	data, err := json.Marshal(response)
+	if err != nil {
+		h.log.Error(
+			"failed to marshal response json",
+			"err", err,
+		)
+
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 
 	var request []CreateUrlBatchRequest
+
+	uid, ok := h.getUserID(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
+		return
+	}
 
 	body := http.MaxBytesReader(
 		w,
@@ -85,7 +150,7 @@ func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	result, err := h.service.CreateUrlBatch(r.Context(), serviceReq)
+	result, err := h.service.CreateUrlBatch(r.Context(), serviceReq, uid)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			h.log.Debug("create short url canceled by client")
@@ -202,6 +267,16 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 		response ShortUrlResponse
 	)
 
+	uid, ok := h.getUserID(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
 	body := http.MaxBytesReader(
 		w,
 		r.Body,
@@ -218,7 +293,7 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortedUrl, err := h.service.CreateShortUrl(r.Context(), request.URL)
+	shortedUrl, err := h.service.CreateShortUrl(r.Context(), request.URL, uid)
 
 	status := http.StatusCreated
 
@@ -278,6 +353,16 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
+	uid, ok := h.getUserID(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
 	data, err := io.ReadAll(io.LimitReader(r.Body, 1024*1024))
 	if err != nil {
 		h.log.Info(
@@ -290,7 +375,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	url := string(data)
 
-	shortedUrl, err := h.service.CreateShortUrl(r.Context(), url)
+	shortedUrl, err := h.service.CreateShortUrl(r.Context(), url, uid)
 
 	status := http.StatusCreated
 
@@ -334,4 +419,15 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
 	w.Write([]byte(shortedUrl))
+}
+
+func (h *Handler) getUserID(ctx context.Context) (string, bool) {
+	uid, ok := ctx.Value("userID").(string)
+	if !ok {
+		h.log.Error(
+			"failed to get user ID from context",
+			"actual_type", fmt.Sprintf("%T", ctx.Value("userID")),
+		)
+	}
+	return uid, ok
 }

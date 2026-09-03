@@ -10,6 +10,76 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetURLs_NoRows(t *testing.T) {
+	cleanDB(t)
+	ctx := context.Background()
+	repo := newRepo(t)
+
+	existsUserID, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	notExistsUserID, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	queryCreate := `INSERT INTO shortened_urls 
+						(uuid, short_code, original_url, user_id)
+					VALUES ($1, $2, $3, $4)`
+
+	_, err = testPool.Exec(
+		ctx,
+		queryCreate,
+		uuid.New(),
+		"short-code",
+		"original-url",
+		existsUserID,
+	)
+	require.NoError(t, err)
+
+	result, err := repo.GetURLs(ctx, notExistsUserID)
+	require.ErrorIs(t, err, ErrNoRows)
+	require.Empty(t, result)
+}
+
+func TestGetURLs_Success(t *testing.T) {
+	cleanDB(t)
+	ctx := context.Background()
+	repo := newRepo(t)
+
+	urlUUID, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	userUUID, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	shortenedUrl := []model.ShortenedUrl{
+		{
+			UUID:        urlUUID,
+			ShortCode:   "short-code",
+			OriginalUrl: "original-url",
+			UserID:      userUUID,
+		},
+	}
+
+	queryCreate := `INSERT INTO shortened_urls 
+						(uuid, short_code, original_url, user_id)
+					VALUES ($1, $2, $3, $4)`
+
+	_, err = testPool.Exec(
+		ctx,
+		queryCreate,
+		shortenedUrl[0].UUID,
+		shortenedUrl[0].ShortCode,
+		shortenedUrl[0].OriginalUrl,
+		shortenedUrl[0].UserID,
+	)
+	require.NoError(t, err)
+
+	result, err := repo.GetURLs(ctx, userUUID)
+	require.NoError(t, err)
+
+	require.ElementsMatch(t, shortenedUrl, result)
+}
+
 func TestCreateBatch_Success(t *testing.T) {
 	cleanDB(t)
 	ctx := context.Background()

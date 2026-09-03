@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
+	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -214,6 +215,74 @@ func (_c *MockURLRepository_Get_Call) Return(s string, err error) *MockURLReposi
 }
 
 func (_c *MockURLRepository_Get_Call) RunAndReturn(run func(ctx context.Context, shortCode string) (string, error)) *MockURLRepository_Get_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetURLs provides a mock function for the type MockURLRepository
+func (_mock *MockURLRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.ShortenedUrl, error) {
+	ret := _mock.Called(ctx, uid)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetURLs")
+	}
+
+	var r0 []model.ShortenedUrl
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]model.ShortenedUrl, error)); ok {
+		return returnFunc(ctx, uid)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) []model.ShortenedUrl); ok {
+		r0 = returnFunc(ctx, uid)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.ShortenedUrl)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, uid)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockURLRepository_GetURLs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetURLs'
+type MockURLRepository_GetURLs_Call struct {
+	*mock.Call
+}
+
+// GetURLs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - uid uuid.UUID
+func (_e *MockURLRepository_Expecter) GetURLs(ctx any, uid any) *MockURLRepository_GetURLs_Call {
+	return &MockURLRepository_GetURLs_Call{Call: _e.mock.On("GetURLs", ctx, uid)}
+}
+
+func (_c *MockURLRepository_GetURLs_Call) Run(run func(ctx context.Context, uid uuid.UUID)) *MockURLRepository_GetURLs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_GetURLs_Call) Return(shortenedUrls []model.ShortenedUrl, err error) *MockURLRepository_GetURLs_Call {
+	_c.Call.Return(shortenedUrls, err)
+	return _c
+}
+
+func (_c *MockURLRepository_GetURLs_Call) RunAndReturn(run func(ctx context.Context, uid uuid.UUID) ([]model.ShortenedUrl, error)) *MockURLRepository_GetURLs_Call {
 	_c.Call.Return(run)
 	return _c
 }
