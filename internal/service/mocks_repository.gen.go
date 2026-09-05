@@ -40,8 +40,8 @@ func (_m *MockURLRepository) EXPECT() *MockURLRepository_Expecter {
 }
 
 // Create provides a mock function for the type MockURLRepository
-func (_mock *MockURLRepository) Create(ctx context.Context, ShortenedURL model.ShortenedURL) error {
-	ret := _mock.Called(ctx, ShortenedURL)
+func (_mock *MockURLRepository) Create(ctx context.Context, shortenedURL model.ShortenedURL) error {
+	ret := _mock.Called(ctx, shortenedURL)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
@@ -49,7 +49,7 @@ func (_mock *MockURLRepository) Create(ctx context.Context, ShortenedURL model.S
 
 	var r0 error
 	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ShortenedURL) error); ok {
-		r0 = returnFunc(ctx, ShortenedURL)
+		r0 = returnFunc(ctx, shortenedURL)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -63,12 +63,12 @@ type MockURLRepository_Create_Call struct {
 
 // Create is a helper method to define mock.On call
 //   - ctx context.Context
-//   - ShortenedURL model.ShortenedURL
-func (_e *MockURLRepository_Expecter) Create(ctx any, ShortenedURL any) *MockURLRepository_Create_Call {
-	return &MockURLRepository_Create_Call{Call: _e.mock.On("Create", ctx, ShortenedURL)}
+//   - shortenedURL model.ShortenedURL
+func (_e *MockURLRepository_Expecter) Create(ctx any, shortenedURL any) *MockURLRepository_Create_Call {
+	return &MockURLRepository_Create_Call{Call: _e.mock.On("Create", ctx, shortenedURL)}
 }
 
-func (_c *MockURLRepository_Create_Call) Run(run func(ctx context.Context, ShortenedURL model.ShortenedURL)) *MockURLRepository_Create_Call {
+func (_c *MockURLRepository_Create_Call) Run(run func(ctx context.Context, shortenedURL model.ShortenedURL)) *MockURLRepository_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -91,14 +91,14 @@ func (_c *MockURLRepository_Create_Call) Return(err error) *MockURLRepository_Cr
 	return _c
 }
 
-func (_c *MockURLRepository_Create_Call) RunAndReturn(run func(ctx context.Context, ShortenedURL model.ShortenedURL) error) *MockURLRepository_Create_Call {
+func (_c *MockURLRepository_Create_Call) RunAndReturn(run func(ctx context.Context, shortenedURL model.ShortenedURL) error) *MockURLRepository_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // CreateBatch provides a mock function for the type MockURLRepository
-func (_mock *MockURLRepository) CreateBatch(ctx context.Context, ShortenedURLs []model.ShortenedURL) error {
-	ret := _mock.Called(ctx, ShortenedURLs)
+func (_mock *MockURLRepository) CreateBatch(ctx context.Context, shortenedURLs []model.ShortenedURL) error {
+	ret := _mock.Called(ctx, shortenedURLs)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateBatch")
@@ -106,7 +106,7 @@ func (_mock *MockURLRepository) CreateBatch(ctx context.Context, ShortenedURLs [
 
 	var r0 error
 	if returnFunc, ok := ret.Get(0).(func(context.Context, []model.ShortenedURL) error); ok {
-		r0 = returnFunc(ctx, ShortenedURLs)
+		r0 = returnFunc(ctx, shortenedURLs)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -120,12 +120,12 @@ type MockURLRepository_CreateBatch_Call struct {
 
 // CreateBatch is a helper method to define mock.On call
 //   - ctx context.Context
-//   - ShortenedURLs []model.ShortenedURL
-func (_e *MockURLRepository_Expecter) CreateBatch(ctx any, ShortenedURLs any) *MockURLRepository_CreateBatch_Call {
-	return &MockURLRepository_CreateBatch_Call{Call: _e.mock.On("CreateBatch", ctx, ShortenedURLs)}
+//   - shortenedURLs []model.ShortenedURL
+func (_e *MockURLRepository_Expecter) CreateBatch(ctx any, shortenedURLs any) *MockURLRepository_CreateBatch_Call {
+	return &MockURLRepository_CreateBatch_Call{Call: _e.mock.On("CreateBatch", ctx, shortenedURLs)}
 }
 
-func (_c *MockURLRepository_CreateBatch_Call) Run(run func(ctx context.Context, ShortenedURLs []model.ShortenedURL)) *MockURLRepository_CreateBatch_Call {
+func (_c *MockURLRepository_CreateBatch_Call) Run(run func(ctx context.Context, shortenedURLs []model.ShortenedURL)) *MockURLRepository_CreateBatch_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -148,7 +148,7 @@ func (_c *MockURLRepository_CreateBatch_Call) Return(err error) *MockURLReposito
 	return _c
 }
 
-func (_c *MockURLRepository_CreateBatch_Call) RunAndReturn(run func(ctx context.Context, ShortenedURLs []model.ShortenedURL) error) *MockURLRepository_CreateBatch_Call {
+func (_c *MockURLRepository_CreateBatch_Call) RunAndReturn(run func(ctx context.Context, shortenedURLs []model.ShortenedURL) error) *MockURLRepository_CreateBatch_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -283,6 +283,78 @@ func (_c *MockURLRepository_GetURLs_Call) Return(shortenedURLs []model.Shortened
 }
 
 func (_c *MockURLRepository_GetURLs_Call) RunAndReturn(run func(ctx context.Context, uid uuid.UUID) ([]model.ShortenedURL, error)) *MockURLRepository_GetURLs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SoftDeleteURLs provides a mock function for the type MockURLRepository
+func (_mock *MockURLRepository) SoftDeleteURLs(ctx context.Context, uid uuid.UUID, shortCodes ...string) error {
+	var tmpRet mock.Arguments
+	if len(shortCodes) > 0 {
+		tmpRet = _mock.Called(ctx, uid, shortCodes)
+	} else {
+		tmpRet = _mock.Called(ctx, uid)
+	}
+	ret := tmpRet
+
+	if len(ret) == 0 {
+		panic("no return value specified for SoftDeleteURLs")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, ...string) error); ok {
+		r0 = returnFunc(ctx, uid, shortCodes...)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockURLRepository_SoftDeleteURLs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SoftDeleteURLs'
+type MockURLRepository_SoftDeleteURLs_Call struct {
+	*mock.Call
+}
+
+// SoftDeleteURLs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - uid uuid.UUID
+//   - shortCodes ...string
+func (_e *MockURLRepository_Expecter) SoftDeleteURLs(ctx any, uid any, shortCodes ...any) *MockURLRepository_SoftDeleteURLs_Call {
+	return &MockURLRepository_SoftDeleteURLs_Call{Call: _e.mock.On("SoftDeleteURLs",
+		append([]any{ctx, uid}, shortCodes...)...)}
+}
+
+func (_c *MockURLRepository_SoftDeleteURLs_Call) Run(run func(ctx context.Context, uid uuid.UUID, shortCodes ...string)) *MockURLRepository_SoftDeleteURLs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 []string
+		var variadicArgs []string
+		if len(args) > 2 {
+			variadicArgs = args[2].([]string)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_SoftDeleteURLs_Call) Return(err error) *MockURLRepository_SoftDeleteURLs_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockURLRepository_SoftDeleteURLs_Call) RunAndReturn(run func(ctx context.Context, uid uuid.UUID, shortCodes ...string) error) *MockURLRepository_SoftDeleteURLs_Call {
 	_c.Call.Return(run)
 	return _c
 }

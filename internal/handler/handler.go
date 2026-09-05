@@ -20,6 +20,7 @@ type URLShortener interface {
 	CreateURLBatch(ctx context.Context, req []service.CreateURLBatchRequest, uid string) ([]service.CreateURLBatchResponse, error)
 	GetOriginalURL(ctx context.Context, shortCode string) (string, error)
 	GetUserURLs(ctx context.Context, uid string) ([]service.GetURLsResponse, error)
+	DeleteURLs(ctx context.Context, uid string, shortCodes ...string) error
 }
 
 type Handler struct {
@@ -45,6 +46,62 @@ func (h *Handler) Register(r chi.Router) {
 	r.Get("/api/user/urls", h.GetURLs)
 	r.Get("/{id}", h.Redirect)
 	r.Get("/ping", h.Ping)
+	r.Delete("/api/user/urls", h.DeleteURLs)
+}
+
+func (h *Handler) DeleteURLs(w http.ResponseWriter, r *http.Request) {
+	uid, ok := h.getUserID(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	var shortCodes []string
+
+	if err := json.NewDecoder(r.Body).Decode(&shortCodes); err != nil {
+		h.log.Info(
+			"failed to decode json body",
+			"err", err,
+		)
+
+		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	if len(shortCodes) == 0 {
+
+		h.log.Info(
+			"no short codes provided for deletion",
+		)
+
+		http.Error(
+			w,
+			http.StatusText(http.StatusBadRequest),
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	err := h.service.DeleteURLs(r.Context(), uid, shortCodes...)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			h.log.Debug("delete URLs canceled by client")
+			w.WriteHeader(499)
+		} else {
+			h.log.Error(
+				"unexpected error during url deletion",
+				"err", err,
+			)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (h *Handler) GetURLs(w http.ResponseWriter, r *http.Request) {
@@ -248,6 +305,12 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 			)
 
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		} else if errors.Is(err, service.ErrURLIsDeleted) {
+			h.log.Info(
+				"requested URL has been deleted",
+				"code", shortCode,
+			)
+			w.WriteHeader(http.StatusGone)
 		} else {
 			h.log.Error(
 				"unexpected error during redirect",

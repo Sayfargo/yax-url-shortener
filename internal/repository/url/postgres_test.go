@@ -10,6 +10,168 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSoftDeleteURLs_DoesNotDeleteOtherUsersURLs(t *testing.T) {
+	cleanDB(t)
+
+	ctx := context.Background()
+	repo := newRepo(t)
+
+	userID := uuid.New()
+	otherUserID := uuid.New()
+
+	urls := []model.ShortenedURL{
+		{
+			UUID:        uuid.New(),
+			ShortCode:   "MyURL123",
+			OriginalURL: "https://google.com",
+			UserID:      userID,
+			IsDeleted:   false,
+		},
+		{
+			UUID:        uuid.New(),
+			ShortCode:   "Other123",
+			OriginalURL: "https://github.com",
+			UserID:      otherUserID,
+			IsDeleted:   false,
+		},
+	}
+
+	queryCreate := `
+		INSERT INTO shortened_urls 
+			(uuid, short_code, original_url, user_id, is_deleted)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+
+	for _, u := range urls {
+		_, err := testPool.Exec(
+			ctx,
+			queryCreate,
+			u.UUID,
+			u.ShortCode,
+			u.OriginalURL,
+			u.UserID,
+			u.IsDeleted,
+		)
+		require.NoError(t, err)
+	}
+
+	err := repo.SoftDeleteURLs(
+		ctx,
+		userID,
+		"MyURL123",
+		"Other123",
+	)
+	require.NoError(t, err)
+
+	queryCheck := `
+		SELECT short_code, is_deleted
+		FROM shortened_urls
+		WHERE short_code = ANY($1)
+	`
+
+	rows, err := testPool.Query(
+		ctx,
+		queryCheck,
+		[]string{
+			"MyURL123",
+			"Other123",
+		},
+	)
+	require.NoError(t, err)
+
+	defer rows.Close()
+
+	deletedStatus := make(map[string]bool)
+
+	for rows.Next() {
+		var (
+			shortCode string
+			isDeleted bool
+		)
+
+		err := rows.Scan(&shortCode, &isDeleted)
+		require.NoError(t, err)
+
+		deletedStatus[shortCode] = isDeleted
+	}
+
+	require.NoError(t, rows.Err())
+
+	assert.Equal(
+		t,
+		map[string]bool{
+			"MyURL123": true,
+			"Other123": false,
+		},
+		deletedStatus,
+	)
+}
+
+func TestSoftDeleteURLs_Success(t *testing.T) {
+	cleanDB(t)
+	ctx := context.Background()
+	repo := newRepo(t)
+
+	userUUID, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	ShortenedURLs := []model.ShortenedURL{
+		{
+			UUID:        uuid.New(),
+			ShortCode:   "FaE9R129",
+			OriginalURL: "https://google.com",
+			UserID:      userUUID,
+			IsDeleted:   false,
+		},
+		{
+			UUID:        uuid.New(),
+			ShortCode:   "RbE9z121",
+			OriginalURL: "https://github.com",
+			UserID:      userUUID,
+			IsDeleted:   false,
+		},
+	}
+
+	queryCreate := `INSERT INTO shortened_urls 
+						(uuid, short_code, original_url, user_id, is_deleted)
+					VALUES ($1, $2, $3, $4, $5)`
+
+	for _, u := range ShortenedURLs {
+		_, err = testPool.Exec(
+			ctx,
+			queryCreate,
+			u.UUID,
+			u.ShortCode,
+			u.OriginalURL,
+			u.UserID,
+			u.IsDeleted,
+		)
+		require.NoError(t, err)
+	}
+
+	shortCodesToDelete := []string{"FaE9R129", "RbE9z121"}
+
+	err = repo.SoftDeleteURLs(ctx, userUUID, shortCodesToDelete...)
+	require.NoError(t, err)
+
+	queryCheck := `SELECT is_deleted FROM shortened_urls WHERE user_id = $1 AND short_code = ANY($2)`
+
+	rows, err := testPool.Query(ctx, queryCheck, userUUID, shortCodesToDelete)
+	require.NoError(t, err)
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var isDeleted bool
+		err = rows.Scan(&isDeleted)
+		require.NoError(t, err)
+		assert.True(t, isDeleted)
+	}
+
+	err = rows.Err()
+	require.NoError(t, err)
+}
+
 func TestGetURLs_NoRows(t *testing.T) {
 	cleanDB(t)
 	ctx := context.Background()

@@ -184,6 +184,78 @@ func (_c *MockURLShortener_CreateURLBatch_Call) RunAndReturn(run func(ctx contex
 	return _c
 }
 
+// DeleteURLs provides a mock function for the type MockURLShortener
+func (_mock *MockURLShortener) DeleteURLs(ctx context.Context, uid string, shortCodes ...string) error {
+	var tmpRet mock.Arguments
+	if len(shortCodes) > 0 {
+		tmpRet = _mock.Called(ctx, uid, shortCodes)
+	} else {
+		tmpRet = _mock.Called(ctx, uid)
+	}
+	ret := tmpRet
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteURLs")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, ...string) error); ok {
+		r0 = returnFunc(ctx, uid, shortCodes...)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockURLShortener_DeleteURLs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteURLs'
+type MockURLShortener_DeleteURLs_Call struct {
+	*mock.Call
+}
+
+// DeleteURLs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - uid string
+//   - shortCodes ...string
+func (_e *MockURLShortener_Expecter) DeleteURLs(ctx any, uid any, shortCodes ...any) *MockURLShortener_DeleteURLs_Call {
+	return &MockURLShortener_DeleteURLs_Call{Call: _e.mock.On("DeleteURLs",
+		append([]any{ctx, uid}, shortCodes...)...)}
+}
+
+func (_c *MockURLShortener_DeleteURLs_Call) Run(run func(ctx context.Context, uid string, shortCodes ...string)) *MockURLShortener_DeleteURLs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 []string
+		var variadicArgs []string
+		if len(args) > 2 {
+			variadicArgs = args[2].([]string)
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
+	})
+	return _c
+}
+
+func (_c *MockURLShortener_DeleteURLs_Call) Return(err error) *MockURLShortener_DeleteURLs_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockURLShortener_DeleteURLs_Call) RunAndReturn(run func(ctx context.Context, uid string, shortCodes ...string) error) *MockURLShortener_DeleteURLs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetOriginalURL provides a mock function for the type MockURLShortener
 func (_mock *MockURLShortener) GetOriginalURL(ctx context.Context, shortCode string) (string, error) {
 	ret := _mock.Called(ctx, shortCode)

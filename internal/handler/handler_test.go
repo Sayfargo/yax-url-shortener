@@ -22,6 +22,112 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDeleteURLs_UnexpectedError(t *testing.T) {
+	mockSvc := NewMockURLShortener(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	uid, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
+
+	urls := `["short-code-1", "short-code-2"]`
+
+	mockSvc.EXPECT().DeleteURLs(
+		ctx,
+		uid.String(),
+		[]string{
+			"short-code-1",
+			"short-code-2",
+		},
+	).Return(errors.New("some error"))
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/api/user/urls", strings.NewReader(urls))
+
+	handler := New(mockSvc, log, nil)
+	rw := httptest.NewRecorder()
+
+	handler.DeleteURLs(rw, req)
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+}
+
+func TestDeleteURLs_EmptyShortCodes(t *testing.T) {
+	mockSvc := NewMockURLShortener(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	uid, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
+
+	urls := `[]`
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/api/user/urls", strings.NewReader(urls))
+
+	handler := New(mockSvc, log, nil)
+	rw := httptest.NewRecorder()
+
+	handler.DeleteURLs(rw, req)
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+}
+
+func TestDeleteURLs_WithoutUserID(t *testing.T) {
+	mockSvc := NewMockURLShortener(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	urls := `["short-code-1", "short-code-2"]`
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodDelete, "/api/user/urls", strings.NewReader(urls))
+
+	handler := New(mockSvc, log, nil)
+	rw := httptest.NewRecorder()
+
+	handler.DeleteURLs(rw, req)
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+}
+
+func TestDeleteURLs_Success(t *testing.T) {
+	mockSvc := NewMockURLShortener(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	uid, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	urls := `["short-code-1", "short-code-2"]`
+
+	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
+
+	mockSvc.EXPECT().DeleteURLs(
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+	).Return(nil)
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/api/user/urls", strings.NewReader(urls))
+
+	handler := New(mockSvc, log, nil)
+	rw := httptest.NewRecorder()
+
+	handler.DeleteURLs(rw, req)
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+
+}
+
 func TestGetURLs_UnexpectedError(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -616,6 +722,7 @@ func TestRedirect_ErrorResponses(t *testing.T) {
 	}{
 		{name: "URL does not exists", shortCode: "DnmPeRZF", expectedCode: http.StatusNotFound, serviceError: service.ErrURLDoesNotExists},
 		{name: "Unexpected error", shortCode: "DnmPeRZF", expectedCode: http.StatusInternalServerError, serviceError: errors.New("unexpected error")},
+		{name: "URL is deleted", shortCode: "DnmPeRZF", expectedCode: http.StatusGone, serviceError: service.ErrURLIsDeleted},
 	}
 
 	for _, test := range testcases {

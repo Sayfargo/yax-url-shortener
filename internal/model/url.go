@@ -7,4 +7,5 @@ type ShortenedURL struct {
 	ShortCode   string    `json:"short_code"`
 	OriginalURL string    `json:"original_url"`
 	UserID      uuid.UUID `json:"user_Id"`
+	IsDeleted   bool      `json:"is_deleted"`
 }

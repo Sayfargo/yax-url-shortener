@@ -10,6 +10,7 @@ var (
 	ErrConflictShortCode = errors.New("short code already exists")
 	ErrUnexpectedType    = errors.New("unexpected data type in cache")
 	ErrNoRows            = errors.New("no rows")
+	ErrRowGone           = errors.New("row has been deleted")
 )
 
 type BatchConflictError struct {

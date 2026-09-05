@@ -20,6 +20,86 @@ import (
 
 const baseURL = "https://base.com"
 
+func TestDeleteURLs_QueueFull_ContextCanceled(t *testing.T) {
+	svc := &URLShortenerService{
+		deleteQueue: make(chan DeletedTask, 1),
+	}
+
+	svc.deleteQueue <- DeletedTask{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan error)
+
+	go func() {
+		done <- svc.DeleteURLs(
+			ctx,
+			uuid.New().String(),
+			"abc123",
+		)
+	}()
+
+	cancel()
+
+	err := <-done
+
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestDeleteURLs_InvalidUUID(t *testing.T) {
+	svc := &URLShortenerService{
+		deleteQueue: make(chan DeletedTask, 1),
+	}
+
+	err := svc.DeleteURLs(
+		context.Background(),
+		"invalid-uuid",
+		"abc123",
+	)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "uuid parse")
+
+	select {
+	case <-svc.deleteQueue:
+		t.Fatal("task should not be added")
+	default:
+	}
+}
+
+func TestDeleteURLs_Success(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := &URLShortenerService{
+		deleteQueue: make(chan DeletedTask, 1),
+		log:         log,
+	}
+
+	uid := uuid.New()
+
+	err := svc.DeleteURLs(
+		context.Background(),
+		uid.String(),
+		"abc123",
+		"def456",
+	)
+
+	require.NoError(t, err)
+
+	select {
+	case task := <-svc.deleteQueue:
+		assert.Equal(t, uid, task.UID)
+		assert.Equal(
+			t,
+			[]string{"abc123", "def456"},
+			task.ShortCodes,
+		)
+
+	default:
+		t.Fatal("expected task in queue")
+	}
+}
+
 func TestGetUserURLs_UnexpectedError(t *testing.T) {
 	repo := NewMockURLRepository(t)
 	generator := NewMockGenerator(t)

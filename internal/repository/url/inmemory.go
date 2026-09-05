@@ -24,6 +24,31 @@ func NewInMemoryRepo(cache *cache.Cache) *CacheRepository {
 	}
 }
 
+func (r *CacheRepository) SoftDeleteURLs(ctx context.Context, uid uuid.UUID, shortCodes ...string) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, shortCode := range shortCodes {
+		value, err := r.c.Get(shortCode)
+		if err != nil {
+			if errors.Is(err, cache.ErrNotFound) {
+				return ErrNotExists
+			}
+			return fmt.Errorf("cache storage get err: %w", err)
+		}
+		if shortenedURL, ok := value.(model.ShortenedURL); ok {
+			shortenedURL.IsDeleted = true
+			r.c.Set(shortCode, shortenedURL)
+		}
+	}
+	return nil
+
+}
+
 func (r *CacheRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.ShortenedURL, error) {
 
 	if ctx.Err() != nil {
@@ -34,7 +59,7 @@ func (r *CacheRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.S
 
 	for _, val := range r.c.Snapshot() {
 		if rec, ok := val.(model.ShortenedURL); ok {
-			if rec.UserID == uid {
+			if rec.UserID == uid && rec.IsDeleted == false {
 				urls = append(urls, rec)
 			}
 		} else {
@@ -63,15 +88,19 @@ func (r *CacheRepository) Get(ctx context.Context, shortCode string) (string, er
 		return "", fmt.Errorf("cache storage get err: %w", err)
 	}
 
-	ShortenedURL, ok := value.(model.ShortenedURL)
+	shortenedURL, ok := value.(model.ShortenedURL)
 	if !ok {
 		return "", ErrUnexpectedType
 	}
 
-	return ShortenedURL.OriginalURL, nil
+	if shortenedURL.IsDeleted {
+		return "", ErrRowGone
+	}
+
+	return shortenedURL.OriginalURL, nil
 }
 
-func (r *CacheRepository) CreateBatch(ctx context.Context, ShortenedURLs []model.ShortenedURL) error {
+func (r *CacheRepository) CreateBatch(ctx context.Context, shortenedURLs []model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -81,16 +110,16 @@ func (r *CacheRepository) CreateBatch(ctx context.Context, ShortenedURLs []model
 
 	seenShort := make(map[string]struct{})
 
-	for i, ShortenedURL := range ShortenedURLs {
+	for i, u := range shortenedURLs {
 
-		if _, ok := seenShort[ShortenedURL.ShortCode]; ok {
+		if _, ok := seenShort[u.ShortCode]; ok {
 			return &BatchConflictError{
 				Index: i,
 				Err:   ErrConflictShortCode,
 			}
 		}
 
-		_, err := r.c.Get(ShortenedURL.ShortCode)
+		_, err := r.c.Get(u.ShortCode)
 
 		switch {
 		case err == nil:
@@ -102,18 +131,18 @@ func (r *CacheRepository) CreateBatch(ctx context.Context, ShortenedURLs []model
 			return err
 		}
 
-		seenShort[ShortenedURL.ShortCode] = struct{}{}
+		seenShort[u.ShortCode] = struct{}{}
 	}
 
-	for _, ShortenedURL := range ShortenedURLs {
-		r.c.Set(ShortenedURL.ShortCode, ShortenedURL)
-		r.originalMap[ShortenedURL.OriginalURL] = ShortenedURL.ShortCode
+	for _, u := range shortenedURLs {
+		r.c.Set(u.ShortCode, u)
+		r.originalMap[u.OriginalURL] = u.ShortCode
 	}
 
 	return nil
 }
 
-func (r *CacheRepository) Create(ctx context.Context, ShortenedURL model.ShortenedURL) error {
+func (r *CacheRepository) Create(ctx context.Context, shortenedURL model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -121,13 +150,13 @@ func (r *CacheRepository) Create(ctx context.Context, ShortenedURL model.Shorten
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if v, ok := r.originalMap[ShortenedURL.OriginalURL]; ok {
+	if v, ok := r.originalMap[shortenedURL.OriginalURL]; ok {
 		return &OriginalURLConflictError{
 			ShortCode: v,
 		}
 	}
 
-	_, err := r.c.Get(ShortenedURL.ShortCode)
+	_, err := r.c.Get(shortenedURL.ShortCode)
 
 	switch {
 	case err == nil:
@@ -136,8 +165,8 @@ func (r *CacheRepository) Create(ctx context.Context, ShortenedURL model.Shorten
 		return err
 	}
 
-	r.c.Set(ShortenedURL.ShortCode, ShortenedURL)
-	r.originalMap[ShortenedURL.OriginalURL] = ShortenedURL.ShortCode
+	r.c.Set(shortenedURL.ShortCode, shortenedURL)
+	r.originalMap[shortenedURL.OriginalURL] = shortenedURL.ShortCode
 
 	return nil
 
