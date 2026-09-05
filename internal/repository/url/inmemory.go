@@ -59,7 +59,7 @@ func (r *CacheRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.S
 
 	for _, val := range r.c.Snapshot() {
 		if rec, ok := val.(model.ShortenedURL); ok {
-			if rec.UserID == uid && rec.IsDeleted == false {
+			if rec.UserID == uid && !rec.IsDeleted {
 				urls = append(urls, rec)
 			}
 		} else {
