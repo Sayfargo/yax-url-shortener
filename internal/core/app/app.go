@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
@@ -24,14 +26,23 @@ type App struct {
 	Server  *httpserver.HTTPServer
 	DB      *pgxpool.Pool
 	Storage *filestorage.FileStorage
+	Service *service.URLShortenerService
 }
 
 func New(cfg *config.Config, log *slog.Logger) (*App, error) {
+
+	// secret key
+	// secretKey := os.Getenv("CK_KEY")
+
+	secretKey := make([]byte, 32)
+
+	_, _ = io.ReadFull(rand.Reader, secretKey)
 
 	// chi router/middlewares
 	rootRouter := chi.NewRouter()
 	rootRouter.Use(middleware.Logging(log))
 	rootRouter.Use(middleware.GzipCompress())
+	rootRouter.Use(middleware.Auth(string(secretKey)))
 
 	var (
 		db          *pgxpool.Pool
@@ -61,6 +72,11 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 			return nil, fmt.Errorf("file storage init: %w", err)
 		}
 
+		log.Info(
+			"initialized file storage with cache repository",
+			"file_storage_path", cfg.FileStorage.FilePath,
+		)
+
 		cacheStorage := cache.Init()
 		cr := url.NewInMemoryRepo(cacheStorage)
 
@@ -74,6 +90,11 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		activeRepo = fcr
 
 	case config.StorageTypeMemory:
+
+		log.Info(
+			"initialized only cache repository",
+		)
+
 		cacheStorage := cache.Init()
 		activeRepo = url.NewInMemoryRepo(cacheStorage)
 	}
@@ -88,6 +109,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		Server:  httpServer,
 		DB:      db,
 		Storage: fileStorage,
+		Service: svc,
 	}, nil
 
 }
@@ -106,6 +128,8 @@ func (a *App) Run(ctx context.Context) (errs error) {
 			a.DB.Close()
 		}
 	}()
+
+	a.Service.StartDeleteWorker(ctx)
 
 	if err := a.Server.Run(ctx); err != nil {
 		errs = errors.Join(errs, fmt.Errorf("server run: %w", err))

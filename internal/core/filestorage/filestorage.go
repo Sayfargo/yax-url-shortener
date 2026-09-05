@@ -31,19 +31,39 @@ func Init(cfg *Config) (*FileStorage, error) {
 	}, nil
 }
 
-func (fs *FileStorage) WriteURL(shortenedUrl model.ShortenedUrl) error {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
+func (fs *FileStorage) RewriteURLs(shortenedURLs []model.ShortenedURL) error {
+	if err := fs.file.Truncate(0); err != nil {
+		return fmt.Errorf("truncate file storage: %w", err)
+	}
 
-	return fs.encoder.Encode(shortenedUrl)
+	if _, err := fs.file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("io seek: %w", err)
+	}
+
+	encoder := json.NewEncoder(fs.file)
+
+	for _, u := range shortenedURLs {
+		if err := encoder.Encode(u); err != nil {
+			return fmt.Errorf("encode shortened url: %w", err)
+		}
+	}
+
+	return nil
 }
 
-func (fs *FileStorage) WriteURLs(shortenedUrls []model.ShortenedUrl) error {
+func (fs *FileStorage) WriteURL(shortenedURL model.ShortenedURL) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	for _, shortenedUrl := range shortenedUrls {
-		if err := fs.encoder.Encode(shortenedUrl); err != nil {
+	return fs.encoder.Encode(shortenedURL)
+}
+
+func (fs *FileStorage) WriteURLs(shortenedURLs []model.ShortenedURL) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	for _, u := range shortenedURLs {
+		if err := fs.encoder.Encode(u); err != nil {
 			return err
 		}
 	}
@@ -51,33 +71,33 @@ func (fs *FileStorage) WriteURLs(shortenedUrls []model.ShortenedUrl) error {
 	return nil
 }
 
-func (fs *FileStorage) ReadURLs() ([]model.ShortenedUrl, error) {
+func (fs *FileStorage) ReadURLs() ([]model.ShortenedURL, error) {
 
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
 	if _, err := fs.file.Seek(0, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("failed to seek: %w", err)
+		return nil, fmt.Errorf("io seek: %w", err)
 	}
 
 	scanner := bufio.NewScanner(fs.file)
-	shortenedUrls := make([]model.ShortenedUrl, 0)
+	ShortenedURLs := make([]model.ShortenedURL, 0)
 
 	for scanner.Scan() {
-		var shortenedUrl model.ShortenedUrl
+		var ShortenedURL model.ShortenedURL
 
-		if err := json.Unmarshal(scanner.Bytes(), &shortenedUrl); err != nil {
+		if err := json.Unmarshal(scanner.Bytes(), &ShortenedURL); err != nil {
 			return nil, fmt.Errorf("unmarshal json: %w", err)
 		}
 
-		shortenedUrls = append(shortenedUrls, shortenedUrl)
+		ShortenedURLs = append(ShortenedURLs, ShortenedURL)
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scanner error: %w", err)
 	}
 
-	return shortenedUrls, nil
+	return ShortenedURLs, nil
 
 }
 

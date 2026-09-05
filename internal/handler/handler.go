@@ -4,30 +4,34 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/ctxkeys"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type UrlShortener interface {
-	CreateShortUrl(ctx context.Context, url string) (string, error)
-	CreateUrlBatch(ctx context.Context, req []service.CreateUrlBatchRequest) ([]service.CreateUrlBatchResponse, error)
-	GetOriginalUrl(ctx context.Context, shortCode string) (string, error)
+type URLShortener interface {
+	CreateShortURL(ctx context.Context, url, uid string) (string, error)
+	CreateURLBatch(ctx context.Context, req []service.CreateURLBatchRequest, uid string) ([]service.CreateURLBatchResponse, error)
+	GetOriginalURL(ctx context.Context, shortCode string) (string, error)
+	GetUserURLs(ctx context.Context, uid string) ([]service.GetURLsResponse, error)
+	DeleteURLs(ctx context.Context, uid string, shortCodes ...string) error
 }
 
 type Handler struct {
-	service UrlShortener
+	service URLShortener
 	log     *slog.Logger
 	pool    *pgxpool.Pool
 }
 
 const maxBodySize = 1024 * 1024
 
-func New(service UrlShortener, log *slog.Logger, pool *pgxpool.Pool) *Handler {
+func New(service URLShortener, log *slog.Logger, pool *pgxpool.Pool) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
@@ -39,13 +43,132 @@ func (h *Handler) Register(r chi.Router) {
 	r.Post("/", h.Create)
 	r.Post("/api/shorten", h.Shorten)
 	r.Post("/api/shorten/batch", h.ShortenBatch)
+	r.Get("/api/user/urls", h.GetURLs)
 	r.Get("/{id}", h.Redirect)
 	r.Get("/ping", h.Ping)
+	r.Delete("/api/user/urls", h.DeleteURLs)
+}
+
+func (h *Handler) DeleteURLs(w http.ResponseWriter, r *http.Request) {
+	uid, ok := h.getUserID(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	var shortCodes []string
+
+	if err := json.NewDecoder(r.Body).Decode(&shortCodes); err != nil {
+		h.log.Info(
+			"failed to decode json body",
+			"err", err,
+		)
+
+		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	if len(shortCodes) == 0 {
+
+		h.log.Info(
+			"no short codes provided for deletion",
+		)
+
+		http.Error(
+			w,
+			http.StatusText(http.StatusBadRequest),
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	err := h.service.DeleteURLs(r.Context(), uid, shortCodes...)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			h.log.Debug("delete URLs canceled by client")
+			w.WriteHeader(499)
+		} else {
+			h.log.Error(
+				"unexpected error during url deletion",
+				"err", err,
+			)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *Handler) GetURLs(w http.ResponseWriter, r *http.Request) {
+
+	uid, ok := h.getUserID(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	result, err := h.service.GetUserURLs(r.Context(), uid)
+	if err != nil {
+		if errors.Is(err, service.ErrURLsNotFound) {
+			w.WriteHeader(http.StatusNoContent)
+		} else if errors.Is(err, context.Canceled) {
+			h.log.Debug("get URLs canceled by client")
+			w.WriteHeader(499)
+		} else {
+			h.log.Error(
+				"unexpected error",
+				"err", err,
+			)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	response := make([]GetURLsResponse, len(result))
+
+	for i, u := range result {
+		response[i].ShortURL = u.ShortURL
+		response[i].OriginalURL = u.OriginalURL
+	}
+
+	data, err := json.Marshal(response)
+	if err != nil {
+		h.log.Error(
+			"failed to marshal response json",
+			"err", err,
+		)
+
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 
-	var request []CreateUrlBatchRequest
+	var request []CreateURLBatchRequest
+
+	uid, ok := h.getUserID(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
+		return
+	}
 
 	body := http.MaxBytesReader(
 		w,
@@ -76,21 +199,21 @@ func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serviceReq := make([]service.CreateUrlBatchRequest, len(request))
+	serviceReq := make([]service.CreateURLBatchRequest, len(request))
 
 	for i, item := range request {
-		serviceReq[i] = service.CreateUrlBatchRequest{
+		serviceReq[i] = service.CreateURLBatchRequest{
 			CorrelationID: item.CorrelationID,
 			OriginalURL:   item.OriginalURL,
 		}
 	}
 
-	result, err := h.service.CreateUrlBatch(r.Context(), serviceReq)
+	result, err := h.service.CreateURLBatch(r.Context(), serviceReq, uid)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			h.log.Debug("create short url canceled by client")
 			w.WriteHeader(499)
-		} else if errors.Is(err, service.ErrIncorrectUrl) {
+		} else if errors.Is(err, service.ErrIncorrectURL) {
 
 			h.log.Info(
 				"incorrect url request",
@@ -116,7 +239,7 @@ func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := make([]CreateUrlBatchResponse, len(result))
+	response := make([]CreateURLBatchResponse, len(result))
 
 	for i, u := range result {
 		response[i].CorrelationID = u.CorrelationID
@@ -163,9 +286,9 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	originalUrl, err := h.service.GetOriginalUrl(r.Context(), shortCode)
+	OriginalURL, err := h.service.GetOriginalURL(r.Context(), shortCode)
 	if err != nil {
-		if errors.Is(err, service.ErrUrlDoesNotExists) {
+		if errors.Is(err, service.ErrURLDoesNotExists) {
 
 			h.log.Info(
 				"url does not exists",
@@ -182,6 +305,12 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 			)
 
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		} else if errors.Is(err, service.ErrURLIsDeleted) {
+			h.log.Info(
+				"requested URL has been deleted",
+				"code", shortCode,
+			)
+			w.WriteHeader(http.StatusGone)
 		} else {
 			h.log.Error(
 				"unexpected error during redirect",
@@ -192,15 +321,25 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, originalUrl, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, OriginalURL, http.StatusTemporaryRedirect)
 
 }
 
 func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 	var (
-		request  ShortUrlRequest
-		response ShortUrlResponse
+		request  ShortURLRequest
+		response ShortURLResponse
 	)
+
+	uid, ok := h.getUserID(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
+		return
+	}
 
 	body := http.MaxBytesReader(
 		w,
@@ -218,7 +357,7 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortedUrl, err := h.service.CreateShortUrl(r.Context(), request.URL)
+	ShortedURL, err := h.service.CreateShortURL(r.Context(), request.URL, uid)
 
 	status := http.StatusCreated
 
@@ -236,7 +375,7 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 
 			http.Error(w, "failed to process request, please try again", http.StatusInternalServerError)
 			return
-		case errors.Is(err, service.ErrIncorrectUrl):
+		case errors.Is(err, service.ErrIncorrectURL):
 			h.log.Info(
 				"incorrect url request",
 				"err", err,
@@ -259,7 +398,7 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response.Result = shortedUrl
+	response.Result = ShortedURL
 
 	data, err := json.Marshal(response)
 	if err != nil {
@@ -278,6 +417,16 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
+	uid, ok := h.getUserID(r.Context())
+	if !ok {
+		http.Error(
+			w,
+			http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
 	data, err := io.ReadAll(io.LimitReader(r.Body, 1024*1024))
 	if err != nil {
 		h.log.Info(
@@ -290,7 +439,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	url := string(data)
 
-	shortedUrl, err := h.service.CreateShortUrl(r.Context(), url)
+	ShortedURL, err := h.service.CreateShortURL(r.Context(), url, uid)
 
 	status := http.StatusCreated
 
@@ -308,7 +457,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 			http.Error(w, "failed to process request, please try again", http.StatusInternalServerError)
 			return
-		case errors.Is(err, service.ErrIncorrectUrl):
+		case errors.Is(err, service.ErrIncorrectURL):
 			h.log.Info(
 				"incorrect url request",
 				"err", err,
@@ -333,5 +482,16 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
-	w.Write([]byte(shortedUrl))
+	w.Write([]byte(ShortedURL))
+}
+
+func (h *Handler) getUserID(ctx context.Context) (string, bool) {
+	uid, ok := ctx.Value(ctxkeys.UserIDKey).(string)
+	if !ok {
+		h.log.Error(
+			"failed to get user ID from context",
+			"actual_type", fmt.Sprintf("%T", ctx.Value(ctxkeys.UserIDKey)),
+		)
+	}
+	return uid, ok
 }

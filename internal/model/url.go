@@ -2,8 +2,10 @@ package model
 
 import "github.com/google/uuid"
 
-type ShortenedUrl struct {
+type ShortenedURL struct {
 	UUID        uuid.UUID `json:"uuid"`
 	ShortCode   string    `json:"short_code"`
-	OriginalUrl string    `json:"original_url"`
+	OriginalURL string    `json:"original_url"`
+	UserID      uuid.UUID `json:"user_Id"`
+	IsDeleted   bool      `json:"is_deleted"`
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
+	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -22,16 +23,76 @@ func NewPgRepo(pool *pgxpool.Pool) *PostgresRepository {
 	}
 }
 
+func (pr *PostgresRepository) SoftDeleteURLs(ctx context.Context, uid uuid.UUID, shortCodes ...string) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	query := `
+        UPDATE shortened_urls
+        SET is_deleted = true
+        WHERE user_id = $1
+          AND short_code = ANY($2)
+    `
+
+	_, err := pr.pool.Exec(ctx, query, uid, shortCodes)
+	if err != nil {
+		return fmt.Errorf("pgx pool exec: %w", err)
+	}
+
+	return nil
+}
+
+func (pr *PostgresRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.ShortenedURL, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	query := `SELECT uuid, short_code, original_url, user_id FROM shortened_urls WHERE user_id = $1 AND is_deleted = false`
+
+	urls := make([]model.ShortenedURL, 0, 32)
+
+	rows, err := pr.pool.Query(ctx, query, uid)
+	if err != nil {
+		return nil, fmt.Errorf("pgx query: %w", err)
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var u model.ShortenedURL
+
+		if err := rows.Scan(&u.UUID, &u.ShortCode, &u.OriginalURL, &u.UserID); err != nil {
+			return nil, fmt.Errorf("pgx rows scan: %w", err)
+		}
+
+		urls = append(urls, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("pgx rows err: %w", err)
+	}
+
+	if len(urls) == 0 {
+		return nil, ErrNoRows
+	}
+
+	return urls, nil
+}
+
 func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string, error) {
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
 
-	query := `SELECT original_url FROM shortened_urls WHERE short_code = $1`
+	query := `SELECT original_url, is_deleted FROM shortened_urls WHERE short_code = $1`
 
-	var origUrl string
+	var (
+		origURL   string
+		isDeleted bool
+	)
 
-	err := pr.pool.QueryRow(ctx, query, shortCode).Scan(&origUrl)
+	err := pr.pool.QueryRow(ctx, query, shortCode).Scan(&origURL, &isDeleted)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", ErrNotExists
@@ -39,11 +100,15 @@ func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string
 		return "", fmt.Errorf("query row: %w", err)
 	}
 
-	return origUrl, nil
+	if isDeleted {
+		return "", ErrRowGone
+	}
+
+	return origURL, nil
 
 }
 
-func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error {
+func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedURLs []model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -59,11 +124,11 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 
 	batch := new(pgx.Batch)
 	query := `
-		INSERT INTO shortened_urls (uuid, short_code, original_url)
-		VALUES ($1, $2, $3)
+		INSERT INTO shortened_urls (uuid, short_code, original_url, user_id, is_deleted)
+		VALUES ($1, $2, $3, $4, $5)
 	`
-	for _, u := range shortenedUrls {
-		batch.Queue(query, u.UUID, u.ShortCode, u.OriginalUrl)
+	for _, u := range shortenedURLs {
+		batch.Queue(query, u.UUID, u.ShortCode, u.OriginalURL, u.UserID, u.IsDeleted)
 	}
 
 	br := tx.SendBatch(ctx, batch)
@@ -71,7 +136,7 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 		_ = br.Close()
 	}()
 
-	for i := range len(shortenedUrls) {
+	for i := range len(shortenedURLs) {
 		_, err := br.Exec()
 		if err != nil {
 
@@ -100,14 +165,14 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedUrls []m
 	return nil
 }
 
-func (pr *PostgresRepository) Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error {
+func (pr *PostgresRepository) Create(ctx context.Context, shortenedURL model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 
 	query := `
-		INSERT INTO shortened_urls (uuid, short_code, original_url)
-		VALUES ($1, $2, $3)
+		INSERT INTO shortened_urls (uuid, short_code, original_url, user_id, is_deleted)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (original_url) DO UPDATE 
 		SET original_url = EXCLUDED.original_url
 		RETURNING short_code, xmax = 0;
@@ -121,9 +186,11 @@ func (pr *PostgresRepository) Create(ctx context.Context, shortenedUrl model.Sho
 	err := pr.pool.QueryRow(
 		ctx,
 		query,
-		shortenedUrl.UUID,
-		shortenedUrl.ShortCode,
-		shortenedUrl.OriginalUrl,
+		shortenedURL.UUID,
+		shortenedURL.ShortCode,
+		shortenedURL.OriginalURL,
+		shortenedURL.UserID,
+		shortenedURL.IsDeleted,
 	).Scan(&shortCode, &inserted)
 
 	if err != nil {
@@ -140,7 +207,7 @@ func (pr *PostgresRepository) Create(ctx context.Context, shortenedUrl model.Sho
 	}
 
 	if !inserted {
-		return &OriginalUrlConflictError{
+		return &OriginalURLConflictError{
 			ShortCode: shortCode,
 		}
 	}
