@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
+	"github.com/google/uuid"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -39,16 +40,16 @@ func (_m *MockURLRepository) EXPECT() *MockURLRepository_Expecter {
 }
 
 // Create provides a mock function for the type MockURLRepository
-func (_mock *MockURLRepository) Create(ctx context.Context, shortenedUrl model.ShortenedUrl) error {
-	ret := _mock.Called(ctx, shortenedUrl)
+func (_mock *MockURLRepository) Create(ctx context.Context, ShortenedURL model.ShortenedURL) error {
+	ret := _mock.Called(ctx, ShortenedURL)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Create")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ShortenedUrl) error); ok {
-		r0 = returnFunc(ctx, shortenedUrl)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, model.ShortenedURL) error); ok {
+		r0 = returnFunc(ctx, ShortenedURL)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -62,20 +63,20 @@ type MockURLRepository_Create_Call struct {
 
 // Create is a helper method to define mock.On call
 //   - ctx context.Context
-//   - shortenedUrl model.ShortenedUrl
-func (_e *MockURLRepository_Expecter) Create(ctx any, shortenedUrl any) *MockURLRepository_Create_Call {
-	return &MockURLRepository_Create_Call{Call: _e.mock.On("Create", ctx, shortenedUrl)}
+//   - ShortenedURL model.ShortenedURL
+func (_e *MockURLRepository_Expecter) Create(ctx any, ShortenedURL any) *MockURLRepository_Create_Call {
+	return &MockURLRepository_Create_Call{Call: _e.mock.On("Create", ctx, ShortenedURL)}
 }
 
-func (_c *MockURLRepository_Create_Call) Run(run func(ctx context.Context, shortenedUrl model.ShortenedUrl)) *MockURLRepository_Create_Call {
+func (_c *MockURLRepository_Create_Call) Run(run func(ctx context.Context, ShortenedURL model.ShortenedURL)) *MockURLRepository_Create_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 model.ShortenedUrl
+		var arg1 model.ShortenedURL
 		if args[1] != nil {
-			arg1 = args[1].(model.ShortenedUrl)
+			arg1 = args[1].(model.ShortenedURL)
 		}
 		run(
 			arg0,
@@ -90,22 +91,22 @@ func (_c *MockURLRepository_Create_Call) Return(err error) *MockURLRepository_Cr
 	return _c
 }
 
-func (_c *MockURLRepository_Create_Call) RunAndReturn(run func(ctx context.Context, shortenedUrl model.ShortenedUrl) error) *MockURLRepository_Create_Call {
+func (_c *MockURLRepository_Create_Call) RunAndReturn(run func(ctx context.Context, ShortenedURL model.ShortenedURL) error) *MockURLRepository_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // CreateBatch provides a mock function for the type MockURLRepository
-func (_mock *MockURLRepository) CreateBatch(ctx context.Context, shortenedUrls []model.ShortenedUrl) error {
-	ret := _mock.Called(ctx, shortenedUrls)
+func (_mock *MockURLRepository) CreateBatch(ctx context.Context, ShortenedURLs []model.ShortenedURL) error {
+	ret := _mock.Called(ctx, ShortenedURLs)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateBatch")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []model.ShortenedUrl) error); ok {
-		r0 = returnFunc(ctx, shortenedUrls)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []model.ShortenedURL) error); ok {
+		r0 = returnFunc(ctx, ShortenedURLs)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -119,20 +120,20 @@ type MockURLRepository_CreateBatch_Call struct {
 
 // CreateBatch is a helper method to define mock.On call
 //   - ctx context.Context
-//   - shortenedUrls []model.ShortenedUrl
-func (_e *MockURLRepository_Expecter) CreateBatch(ctx any, shortenedUrls any) *MockURLRepository_CreateBatch_Call {
-	return &MockURLRepository_CreateBatch_Call{Call: _e.mock.On("CreateBatch", ctx, shortenedUrls)}
+//   - ShortenedURLs []model.ShortenedURL
+func (_e *MockURLRepository_Expecter) CreateBatch(ctx any, ShortenedURLs any) *MockURLRepository_CreateBatch_Call {
+	return &MockURLRepository_CreateBatch_Call{Call: _e.mock.On("CreateBatch", ctx, ShortenedURLs)}
 }
 
-func (_c *MockURLRepository_CreateBatch_Call) Run(run func(ctx context.Context, shortenedUrls []model.ShortenedUrl)) *MockURLRepository_CreateBatch_Call {
+func (_c *MockURLRepository_CreateBatch_Call) Run(run func(ctx context.Context, ShortenedURLs []model.ShortenedURL)) *MockURLRepository_CreateBatch_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 []model.ShortenedUrl
+		var arg1 []model.ShortenedURL
 		if args[1] != nil {
-			arg1 = args[1].([]model.ShortenedUrl)
+			arg1 = args[1].([]model.ShortenedURL)
 		}
 		run(
 			arg0,
@@ -147,7 +148,7 @@ func (_c *MockURLRepository_CreateBatch_Call) Return(err error) *MockURLReposito
 	return _c
 }
 
-func (_c *MockURLRepository_CreateBatch_Call) RunAndReturn(run func(ctx context.Context, shortenedUrls []model.ShortenedUrl) error) *MockURLRepository_CreateBatch_Call {
+func (_c *MockURLRepository_CreateBatch_Call) RunAndReturn(run func(ctx context.Context, ShortenedURLs []model.ShortenedURL) error) *MockURLRepository_CreateBatch_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -214,6 +215,74 @@ func (_c *MockURLRepository_Get_Call) Return(s string, err error) *MockURLReposi
 }
 
 func (_c *MockURLRepository_Get_Call) RunAndReturn(run func(ctx context.Context, shortCode string) (string, error)) *MockURLRepository_Get_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetURLs provides a mock function for the type MockURLRepository
+func (_mock *MockURLRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.ShortenedURL, error) {
+	ret := _mock.Called(ctx, uid)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetURLs")
+	}
+
+	var r0 []model.ShortenedURL
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]model.ShortenedURL, error)); ok {
+		return returnFunc(ctx, uid)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) []model.ShortenedURL); ok {
+		r0 = returnFunc(ctx, uid)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.ShortenedURL)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, uid)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockURLRepository_GetURLs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetURLs'
+type MockURLRepository_GetURLs_Call struct {
+	*mock.Call
+}
+
+// GetURLs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - uid uuid.UUID
+func (_e *MockURLRepository_Expecter) GetURLs(ctx any, uid any) *MockURLRepository_GetURLs_Call {
+	return &MockURLRepository_GetURLs_Call{Call: _e.mock.On("GetURLs", ctx, uid)}
+}
+
+func (_c *MockURLRepository_GetURLs_Call) Run(run func(ctx context.Context, uid uuid.UUID)) *MockURLRepository_GetURLs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_GetURLs_Call) Return(shortenedURLs []model.ShortenedURL, err error) *MockURLRepository_GetURLs_Call {
+	_c.Call.Return(shortenedURLs, err)
+	return _c
+}
+
+func (_c *MockURLRepository_GetURLs_Call) RunAndReturn(run func(ctx context.Context, uid uuid.UUID) ([]model.ShortenedURL, error)) *MockURLRepository_GetURLs_Call {
 	_c.Call.Return(run)
 	return _c
 }

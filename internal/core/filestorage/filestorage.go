@@ -31,19 +31,19 @@ func Init(cfg *Config) (*FileStorage, error) {
 	}, nil
 }
 
-func (fs *FileStorage) WriteURL(shortenedUrl model.ShortenedUrl) error {
+func (fs *FileStorage) WriteURL(ShortenedURL model.ShortenedURL) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	return fs.encoder.Encode(shortenedUrl)
+	return fs.encoder.Encode(ShortenedURL)
 }
 
-func (fs *FileStorage) WriteURLs(shortenedUrls []model.ShortenedUrl) error {
+func (fs *FileStorage) WriteURLs(ShortenedURLs []model.ShortenedURL) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	for _, shortenedUrl := range shortenedUrls {
-		if err := fs.encoder.Encode(shortenedUrl); err != nil {
+	for _, ShortenedURL := range ShortenedURLs {
+		if err := fs.encoder.Encode(ShortenedURL); err != nil {
 			return err
 		}
 	}
@@ -51,7 +51,7 @@ func (fs *FileStorage) WriteURLs(shortenedUrls []model.ShortenedUrl) error {
 	return nil
 }
 
-func (fs *FileStorage) ReadURLs() ([]model.ShortenedUrl, error) {
+func (fs *FileStorage) ReadURLs() ([]model.ShortenedURL, error) {
 
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -61,23 +61,23 @@ func (fs *FileStorage) ReadURLs() ([]model.ShortenedUrl, error) {
 	}
 
 	scanner := bufio.NewScanner(fs.file)
-	shortenedUrls := make([]model.ShortenedUrl, 0)
+	ShortenedURLs := make([]model.ShortenedURL, 0)
 
 	for scanner.Scan() {
-		var shortenedUrl model.ShortenedUrl
+		var ShortenedURL model.ShortenedURL
 
-		if err := json.Unmarshal(scanner.Bytes(), &shortenedUrl); err != nil {
+		if err := json.Unmarshal(scanner.Bytes(), &ShortenedURL); err != nil {
 			return nil, fmt.Errorf("unmarshal json: %w", err)
 		}
 
-		shortenedUrls = append(shortenedUrls, shortenedUrl)
+		ShortenedURLs = append(ShortenedURLs, ShortenedURL)
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scanner error: %w", err)
 	}
 
-	return shortenedUrls, nil
+	return ShortenedURLs, nil
 
 }
 
