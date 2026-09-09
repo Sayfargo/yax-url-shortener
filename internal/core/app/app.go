@@ -2,11 +2,10 @@ package app
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
+	"os"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
 	"github.com/Sayfargo/yax-url-shortener/internal/core/cache"
@@ -29,20 +28,21 @@ type App struct {
 	Service *service.URLShortenerService
 }
 
+const defaultSecretKey = "0123456789abcdef0123456789abcdef"
+
 func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
 	// secret key
-	// secretKey := os.Getenv("CK_KEY")
+	secretKey := os.Getenv("CK_KEY")
 
-	secretKey := make([]byte, 32)
+	if secretKey == "" {
+		secretKey = defaultSecretKey
+	}
 
-	_, _ = io.ReadFull(rand.Reader, secretKey)
-
-	// chi router/middlewares
+	// root router
 	rootRouter := chi.NewRouter()
 	rootRouter.Use(middleware.Logging(log))
 	rootRouter.Use(middleware.GzipCompress())
-	rootRouter.Use(middleware.Auth(string(secretKey)))
 
 	var (
 		db          *pgxpool.Pool
@@ -101,7 +101,12 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
 	svc := service.New(activeRepo, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), log)
 	h := handler.New(svc, log, db)
-	h.Register(rootRouter)
+	h.RegisterPublicAPI(rootRouter)
+	rootRouter.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(string(secretKey)))
+
+		h.RegisterPrivateAPI(r)
+	})
 
 	httpServer := httpserver.New(rootRouter, cfg.Server, log)
 

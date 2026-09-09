@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/ctxkeys"
+	"github.com/Sayfargo/yax-url-shortener/internal/model"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -199,7 +200,7 @@ func TestGetURLs_Success(t *testing.T) {
 		mock.Anything,
 		uid.String(),
 	).Return(
-		[]service.GetURLsResponse{
+		[]model.UserURL{
 			{
 				ShortURL:    "shorted-url",
 				OriginalURL: "original-url",

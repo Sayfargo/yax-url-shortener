@@ -7,6 +7,7 @@ package handler
 import (
 	"context"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/model"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -323,23 +324,23 @@ func (_c *MockURLShortener_GetOriginalURL_Call) RunAndReturn(run func(ctx contex
 }
 
 // GetUserURLs provides a mock function for the type MockURLShortener
-func (_mock *MockURLShortener) GetUserURLs(ctx context.Context, uid string) ([]service.GetURLsResponse, error) {
+func (_mock *MockURLShortener) GetUserURLs(ctx context.Context, uid string) ([]model.UserURL, error) {
 	ret := _mock.Called(ctx, uid)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUserURLs")
 	}
 
-	var r0 []service.GetURLsResponse
+	var r0 []model.UserURL
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) ([]service.GetURLsResponse, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) ([]model.UserURL, error)); ok {
 		return returnFunc(ctx, uid)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) []service.GetURLsResponse); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) []model.UserURL); ok {
 		r0 = returnFunc(ctx, uid)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]service.GetURLsResponse)
+			r0 = ret.Get(0).([]model.UserURL)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
@@ -380,12 +381,12 @@ func (_c *MockURLShortener_GetUserURLs_Call) Run(run func(ctx context.Context, u
 	return _c
 }
 
-func (_c *MockURLShortener_GetUserURLs_Call) Return(getURLsResponses []service.GetURLsResponse, err error) *MockURLShortener_GetUserURLs_Call {
-	_c.Call.Return(getURLsResponses, err)
+func (_c *MockURLShortener_GetUserURLs_Call) Return(userURLs []model.UserURL, err error) *MockURLShortener_GetUserURLs_Call {
+	_c.Call.Return(userURLs, err)
 	return _c
 }
 
-func (_c *MockURLShortener_GetUserURLs_Call) RunAndReturn(run func(ctx context.Context, uid string) ([]service.GetURLsResponse, error)) *MockURLShortener_GetUserURLs_Call {
+func (_c *MockURLShortener_GetUserURLs_Call) RunAndReturn(run func(ctx context.Context, uid string) ([]model.UserURL, error)) *MockURLShortener_GetUserURLs_Call {
 	_c.Call.Return(run)
 	return _c
 }

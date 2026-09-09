@@ -73,13 +73,13 @@ func (r *FileCacheRepository) Create(ctx context.Context, shortenedURL model.Sho
 
 func (r *FileCacheRepository) restoreCache() error {
 
-	ShortenedURLs, err := r.fs.ReadURLs()
+	shortenedURLs, err := r.fs.ReadURLs()
 	if err != nil {
 		return fmt.Errorf("failed to read urls: %w", err)
 	}
 
-	for _, ShortenedURL := range ShortenedURLs {
-		r.c.Set(ShortenedURL.ShortCode, ShortenedURL)
+	for _, u := range shortenedURLs {
+		r.c.Set(u.ShortCode, u)
 	}
 
 	return nil

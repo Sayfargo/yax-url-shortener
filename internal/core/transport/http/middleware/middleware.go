@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -24,24 +25,24 @@ func Auth(secretKey string) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-			var (
-				uid    string
-				exists = false
-			)
+			var userIDStr string
 
 			cookie, err := r.Cookie("uid")
-			if err == nil {
-				if val, err := mycrypto.DecryptAESGCM(cookie.Value, secretKey); err == nil {
-					uid = val
-					exists = true
-				} else {
-					w.WriteHeader(http.StatusUnauthorized)
+
+			switch {
+			case err == nil:
+				userIDStr, err = mycrypto.DecryptAESGCM(cookie.Value, secretKey)
+				if err != nil {
+					http.Error(
+						w,
+						http.StatusText(http.StatusUnauthorized),
+						http.StatusUnauthorized,
+					)
 					return
 				}
-			}
+			case errors.Is(err, http.ErrNoCookie):
 
-			if !exists {
-				uuid, err := uuid.NewUUID()
+				userID, err := uuid.NewUUID()
 				if err != nil {
 					http.Error(
 						w,
@@ -51,9 +52,9 @@ func Auth(secretKey string) Middleware {
 					return
 				}
 
-				uid = uuid.String()
+				userIDStr = userID.String()
 
-				encyptedVal, err := mycrypto.EncryptAESGCM(uid, secretKey)
+				encryptedVal, err := mycrypto.EncryptAESGCM(userIDStr, secretKey)
 				if err != nil {
 					http.Error(
 						w,
@@ -65,15 +66,23 @@ func Auth(secretKey string) Middleware {
 
 				http.SetCookie(w, &http.Cookie{
 					Name:     "uid",
-					Value:    encyptedVal,
+					Value:    encryptedVal,
 					Path:     "/",
 					HttpOnly: true,
 					SameSite: http.SameSiteLaxMode,
 					Expires:  time.Now().Add(time.Hour * 730),
 				})
+
+			default:
+				http.Error(
+					w,
+					http.StatusText(http.StatusBadRequest),
+					http.StatusBadRequest,
+				)
+				return
 			}
 
-			ctx := context.WithValue(r.Context(), ctxkeys.UserIDKey, uid)
+			ctx := context.WithValue(r.Context(), ctxkeys.UserIDKey, userIDStr)
 			next.ServeHTTP(w, r.WithContext(ctx))
 
 		})

@@ -32,6 +32,9 @@ func Init(cfg *Config) (*FileStorage, error) {
 }
 
 func (fs *FileStorage) RewriteURLs(shortenedURLs []model.ShortenedURL) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
 	if err := fs.file.Truncate(0); err != nil {
 		return fmt.Errorf("truncate file storage: %w", err)
 	}
@@ -81,23 +84,23 @@ func (fs *FileStorage) ReadURLs() ([]model.ShortenedURL, error) {
 	}
 
 	scanner := bufio.NewScanner(fs.file)
-	ShortenedURLs := make([]model.ShortenedURL, 0)
+	shortenedURLs := make([]model.ShortenedURL, 0)
 
 	for scanner.Scan() {
-		var ShortenedURL model.ShortenedURL
+		var shortenedURL model.ShortenedURL
 
-		if err := json.Unmarshal(scanner.Bytes(), &ShortenedURL); err != nil {
+		if err := json.Unmarshal(scanner.Bytes(), &shortenedURL); err != nil {
 			return nil, fmt.Errorf("unmarshal json: %w", err)
 		}
 
-		ShortenedURLs = append(ShortenedURLs, ShortenedURL)
+		shortenedURLs = append(shortenedURLs, shortenedURL)
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scanner error: %w", err)
 	}
 
-	return ShortenedURLs, nil
+	return shortenedURLs, nil
 
 }
 

@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/core/transport/http/ctxkeys"
+	"github.com/Sayfargo/yax-url-shortener/internal/model"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,7 +20,7 @@ type URLShortener interface {
 	CreateShortURL(ctx context.Context, url, uid string) (string, error)
 	CreateURLBatch(ctx context.Context, req []service.CreateURLBatchRequest, uid string) ([]service.CreateURLBatchResponse, error)
 	GetOriginalURL(ctx context.Context, shortCode string) (string, error)
-	GetUserURLs(ctx context.Context, uid string) ([]service.GetURLsResponse, error)
+	GetUserURLs(ctx context.Context, uid string) ([]model.UserURL, error)
 	DeleteURLs(ctx context.Context, uid string, shortCodes ...string) error
 }
 
@@ -39,17 +40,21 @@ func New(service URLShortener, log *slog.Logger, pool *pgxpool.Pool) *Handler {
 	}
 }
 
-func (h *Handler) Register(r chi.Router) {
+func (h *Handler) RegisterPublicAPI(r chi.Router) {
+	r.Get("/{id}", h.Redirect)
+	r.Get("/ping", h.Ping)
+}
+
+func (h *Handler) RegisterPrivateAPI(r chi.Router) {
 	r.Post("/", h.Create)
 	r.Post("/api/shorten", h.Shorten)
 	r.Post("/api/shorten/batch", h.ShortenBatch)
 	r.Get("/api/user/urls", h.GetURLs)
-	r.Get("/{id}", h.Redirect)
-	r.Get("/ping", h.Ping)
 	r.Delete("/api/user/urls", h.DeleteURLs)
 }
 
 func (h *Handler) DeleteURLs(w http.ResponseWriter, r *http.Request) {
+
 	uid, ok := h.getUserID(r.Context())
 	if !ok {
 		http.Error(
@@ -62,13 +67,27 @@ func (h *Handler) DeleteURLs(w http.ResponseWriter, r *http.Request) {
 
 	var shortCodes []string
 
-	if err := json.NewDecoder(r.Body).Decode(&shortCodes); err != nil {
-		h.log.Info(
-			"failed to decode json body",
-			"err", err,
-		)
+	body := http.MaxBytesReader(w, r.Body, maxBodySize)
 
-		http.Error(w, "failed to read request body", http.StatusBadRequest)
+	if err := json.NewDecoder(body).Decode(&shortCodes); err != nil {
+
+		var maxBytesErr *http.MaxBytesError
+
+		if errors.As(err, &maxBytesErr) {
+			h.log.Warn("request body exceeded max allowed size",
+				slog.Int64("limit_bytes", maxBytesErr.Limit),
+				slog.String("path", r.URL.Path),
+				slog.String("remote_addr", r.RemoteAddr),
+			)
+
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		} else {
+			h.log.Info(
+				"failed to decode json body",
+				"err", err,
+			)
+			http.Error(w, "failed to read request body", http.StatusBadRequest)
+		}
 		return
 	}
 
@@ -133,14 +152,7 @@ func (h *Handler) GetURLs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := make([]GetURLsResponse, len(result))
-
-	for i, u := range result {
-		response[i].ShortURL = u.ShortURL
-		response[i].OriginalURL = u.OriginalURL
-	}
-
-	data, err := json.Marshal(response)
+	data, err := json.Marshal(result)
 	if err != nil {
 		h.log.Error(
 			"failed to marshal response json",
