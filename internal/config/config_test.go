@@ -61,7 +61,7 @@ func TestConfig_StorageType(t *testing.T) {
 func TestConfigLoad_WithFlags(t *testing.T) {
 
 	expectedAddr := "localhost:9090"
-	expectedBaseURL := "http://localhost:9090"
+	expectedbaseURL := "http://localhost:9090"
 	expectedDsn := "postgres://user:pass@localhost:5432/db"
 	expectedFileStoragePath := "./urls.json"
 
@@ -72,7 +72,7 @@ func TestConfigLoad_WithFlags(t *testing.T) {
 
 	args := []string{
 		"-a", expectedAddr,
-		"-b", expectedBaseURL,
+		"-b", expectedbaseURL,
 		"-d", expectedDsn,
 		"-f", expectedFileStoragePath,
 	}
@@ -80,7 +80,7 @@ func TestConfigLoad_WithFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedAddr, config.Server.Addr)
-	assert.Equal(t, expectedBaseURL, config.Server.BaseURL)
+	assert.Equal(t, expectedbaseURL, config.Server.BaseURL)
 	assert.Equal(t, expectedDsn, config.DB.DBDsn)
 	assert.Equal(t, expectedFileStoragePath, config.FileStorage.FilePath)
 
@@ -89,12 +89,12 @@ func TestConfigLoad_WithFlags(t *testing.T) {
 func TestConfigLoad_WithEnv(t *testing.T) {
 
 	expectedAddr := "localhost:9090"
-	expectedBaseURL := "http://localhost:9090"
+	expectedbaseURL := "http://localhost:9090"
 	expectedDsn := "postgres://user:pass@localhost:5432/db"
 	expectedFileStoragePath := "./urls.json"
 
 	t.Setenv("SERVER_ADDRESS", expectedAddr)
-	t.Setenv("BASE_URL", expectedBaseURL)
+	t.Setenv("BASE_URL", expectedbaseURL)
 	t.Setenv("DATABASE_DSN", expectedDsn)
 	t.Setenv("FILE_STORAGE_PATH", expectedFileStoragePath)
 
@@ -103,7 +103,7 @@ func TestConfigLoad_WithEnv(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedAddr, config.Server.Addr)
-	assert.Equal(t, expectedBaseURL, config.Server.BaseURL)
+	assert.Equal(t, expectedbaseURL, config.Server.BaseURL)
 	assert.Equal(t, expectedDsn, config.DB.DBDsn)
 	assert.Equal(t, expectedFileStoragePath, config.FileStorage.FilePath)
 
@@ -111,7 +111,7 @@ func TestConfigLoad_WithEnv(t *testing.T) {
 
 func TestConfigLoad_WithDefaultParams(t *testing.T) {
 	expectedAddr := "localhost:8080"
-	expectedBaseURL := "http://localhost:8080"
+	expectedbaseURL := "http://localhost:8080"
 	expectedDsn := ""
 	expectedBaseFileStoragePath := ""
 
@@ -126,7 +126,7 @@ func TestConfigLoad_WithDefaultParams(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedAddr, config.Server.Addr)
-	assert.Equal(t, expectedBaseURL, config.Server.BaseURL)
+	assert.Equal(t, expectedbaseURL, config.Server.BaseURL)
 	assert.Equal(t, expectedDsn, config.DB.DBDsn)
 	assert.Equal(t, expectedBaseFileStoragePath, config.FileStorage.FilePath)
 }

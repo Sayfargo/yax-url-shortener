@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
 	"github.com/Sayfargo/yax-url-shortener/internal/core/cache"
@@ -24,11 +25,21 @@ type App struct {
 	Server  *httpserver.HTTPServer
 	DB      *pgxpool.Pool
 	Storage *filestorage.FileStorage
+	Service *service.URLShortenerService
 }
+
+const defaultSecretKey = "0123456789abcdef0123456789abcdef"
 
 func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
-	// chi router/middlewares
+	// secret key
+	secretKey := os.Getenv("CK_KEY")
+
+	if secretKey == "" {
+		secretKey = defaultSecretKey
+	}
+
+	// root router
 	rootRouter := chi.NewRouter()
 	rootRouter.Use(middleware.Logging(log))
 	rootRouter.Use(middleware.GzipCompress())
@@ -61,6 +72,11 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 			return nil, fmt.Errorf("file storage init: %w", err)
 		}
 
+		log.Info(
+			"initialized file storage with cache repository",
+			"file_storage_path", cfg.FileStorage.FilePath,
+		)
+
 		cacheStorage := cache.Init()
 		cr := url.NewInMemoryRepo(cacheStorage)
 
@@ -74,13 +90,23 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		activeRepo = fcr
 
 	case config.StorageTypeMemory:
+
+		log.Info(
+			"initialized only cache repository",
+		)
+
 		cacheStorage := cache.Init()
 		activeRepo = url.NewInMemoryRepo(cacheStorage)
 	}
 
 	svc := service.New(activeRepo, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), log)
 	h := handler.New(svc, log, db)
-	h.Register(rootRouter)
+	h.RegisterPublicAPI(rootRouter)
+	rootRouter.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(string(secretKey)))
+
+		h.RegisterPrivateAPI(r)
+	})
 
 	httpServer := httpserver.New(rootRouter, cfg.Server, log)
 
@@ -88,6 +114,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		Server:  httpServer,
 		DB:      db,
 		Storage: fileStorage,
+		Service: svc,
 	}, nil
 
 }
@@ -106,6 +133,8 @@ func (a *App) Run(ctx context.Context) (errs error) {
 			a.DB.Close()
 		}
 	}()
+
+	a.Service.StartDeleteWorker(ctx)
 
 	if err := a.Server.Run(ctx); err != nil {
 		errs = errors.Join(errs, fmt.Errorf("server run: %w", err))

@@ -9,6 +9,8 @@ var (
 	ErrNotExists         = errors.New("row not found in db")
 	ErrConflictShortCode = errors.New("short code already exists")
 	ErrUnexpectedType    = errors.New("unexpected data type in cache")
+	ErrNoRows            = errors.New("no rows")
+	ErrRowGone           = errors.New("row has been deleted")
 )
 
 type BatchConflictError struct {
@@ -20,10 +22,10 @@ func (e *BatchConflictError) Error() string {
 	return fmt.Sprintf("conflict at index %d: %v", e.Index, e.Err)
 }
 
-type OriginalUrlConflictError struct {
+type OriginalURLConflictError struct {
 	ShortCode string
 }
 
-func (o *OriginalUrlConflictError) Error() string {
+func (o *OriginalURLConflictError) Error() string {
 	return fmt.Sprintf("conflict at url: %s", o.ShortCode)
 }

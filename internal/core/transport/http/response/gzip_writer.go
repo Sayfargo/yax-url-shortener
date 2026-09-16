@@ -19,7 +19,6 @@ type gzipWriter struct {
 }
 
 func NewGzipWriter(w http.ResponseWriter) *gzipWriter {
-	// TODO: Потом можно добавить возможность конфигурирования уровня сжатия
 	zw := gzip.NewWriter(w)
 
 	return &gzipWriter{

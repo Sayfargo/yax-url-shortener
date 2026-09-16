@@ -2,6 +2,7 @@ package cache
 
 import (
 	"errors"
+	"maps"
 	"sync"
 )
 
@@ -40,4 +41,13 @@ func (c *Cache) Get(key string) (any, error) {
 
 	return value, nil
 
+}
+
+func (c *Cache) Snapshot() map[string]any {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	result := make(map[string]any, len(c.storage))
+	maps.Copy(result, c.storage)
+	return result
 }

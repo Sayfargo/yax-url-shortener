@@ -100,7 +100,7 @@ func (c *Closer) Close() error {
 	c.once.Do(func() {
 		for _, file := range c.files {
 			if err := file.Close(); err != nil {
-				c.errs = errors.Join(c.errs, fmt.Errorf("Failed to close file with name %s: %w", file.Name(), err))
+				c.errs = errors.Join(c.errs, fmt.Errorf("failed to close file with name %s: %w", file.Name(), err))
 			}
 		}
 	})

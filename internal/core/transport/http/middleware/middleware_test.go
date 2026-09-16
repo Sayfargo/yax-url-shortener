@@ -3,15 +3,19 @@ package middleware
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/rand"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/Sayfargo/yax-url-shortener/pkg/crypto"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,6 +36,128 @@ func (m *MockLogger) Info(msg string, args ...any) {
 	}
 }
 
+func TestAuthMiddleware_RequestWithNoUserIDInCookie(t *testing.T) {
+	router := chi.NewRouter()
+
+	secretKey := make([]byte, 16)
+
+	_, err := io.ReadFull(rand.Reader, secretKey)
+	require.NoError(t, err)
+
+	router.Use(Auth(string(secretKey)))
+
+	router.Get("/api/user/urls", func(w http.ResponseWriter, r *http.Request) {
+		// must not execute
+		w.WriteHeader(http.StatusOK)
+	})
+
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/user/urls", nil)
+	require.NoError(t, err)
+
+	cookie := &http.Cookie{
+		Name:  "uid",
+		Value: "bad bad bad",
+	}
+
+	req.AddCookie(cookie)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestAuthMiddleware_RequestWithoutCookie(t *testing.T) {
+	router := chi.NewRouter()
+
+	secretKey := make([]byte, 16)
+
+	bodyJSON := `{"url":"https://google.com"}`
+
+	_, err := io.ReadFull(rand.Reader, secretKey)
+	require.NoError(t, err)
+
+	router.Use(Auth(string(secretKey)))
+
+	router.Post("/api/shorten", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	})
+
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/shorten", strings.NewReader(bodyJSON))
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
+	var cookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == "uid" {
+			cookie = c
+			break
+		}
+	}
+	require.NoError(t, err)
+
+	require.NotEmpty(t, cookie.Value)
+	require.True(t, cookie.HttpOnly)
+	require.Equal(t, http.SameSiteLaxMode, cookie.SameSite)
+
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+}
+
+func TestAuthMiddleware_RequestWithCookie(t *testing.T) {
+	router := chi.NewRouter()
+
+	secretKey := make([]byte, 16)
+
+	_, err := io.ReadFull(rand.Reader, secretKey)
+	require.NoError(t, err)
+
+	router.Use(Auth(string(secretKey)))
+
+	router.Get("/api/user/urls", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/user/urls", nil)
+	require.NoError(t, err)
+
+	uid, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	value, err := crypto.EncryptAESGCM(uid.String(), string(secretKey))
+	require.NoError(t, err)
+
+	cookie := &http.Cookie{
+		Name:  "uid",
+		Value: value,
+	}
+
+	req.AddCookie(cookie)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+}
+
 func TestLoggingMiddleware(t *testing.T) {
 	// Инициализируем мок логгера
 	mockLogger := &MockLogger{}
@@ -40,7 +166,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	expectedStatus := http.StatusOK
 	expectedBody := "Hello, World"
 	expectedSize := int64((len(expectedBody)))
-	expectedUri := "/api/v1"
+	expectedURI := "/api/v1"
 	expectedMethod := http.MethodGet
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Имитация работы
@@ -53,7 +179,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	middleware := Logging(mockLogger)
 	testHandler := middleware(nextHandler)
 
-	req := httptest.NewRequest(expectedMethod, expectedUri, nil)
+	req := httptest.NewRequest(expectedMethod, expectedURI, nil)
 	rec := httptest.NewRecorder()
 
 	testHandler.ServeHTTP(rec, req)
@@ -62,7 +188,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	assert.Equal(t, expectedBody, rec.Body.String())
 
 	assert.Equal(t, "HTTP Request done", mockLogger.Message)
-	assert.Equal(t, expectedUri, mockLogger.Attrs["URI"].(string))
+	assert.Equal(t, expectedURI, mockLogger.Attrs["URI"].(string))
 	assert.Equal(t, expectedMethod, mockLogger.Attrs["Method"].(string))
 	assert.Equal(t, int64(expectedStatus), mockLogger.Attrs["status"].(int64))
 	assert.Equal(t, expectedSize, mockLogger.Attrs["size"].(int64))
