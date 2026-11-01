@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/audit"
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
 	"github.com/Sayfargo/yax-url-shortener/internal/core/cache"
 	"github.com/Sayfargo/yax-url-shortener/internal/core/db/postgres"
@@ -99,8 +100,31 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		activeRepo = url.NewInMemoryRepo(cacheStorage)
 	}
 
+	// Audit service initialization
+	publisher := audit.NewPublisher()
+
+	if cfg.Audit.File != "" {
+		fileSub, err := audit.NewFileSubscriber(cfg.Audit.File)
+		if err != nil {
+			log.Error("failed to initialize file subscriber for audit", "err", err)
+			return nil, fmt.Errorf("audit file subscriber init: %w", err)
+		}
+		publisher.Subscribe(fileSub)
+	}
+
+	if cfg.Audit.URL != "" {
+		httpSub := audit.NewHTTPSubscriber(cfg.Audit.URL)
+		if err != nil {
+			log.Error("failed to initialize HTTP subscriber for audit", "err", err)
+			return nil, fmt.Errorf("audit HTTP subscriber init: %w", err)
+		}
+		publisher.Subscribe(httpSub)
+	}
+
+	auditService := audit.NewAuditService(publisher)
+
 	svc := service.New(activeRepo, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), log)
-	h := handler.New(svc, log, db)
+	h := handler.New(svc, log, db, auditService)
 	h.RegisterPublicAPI(rootRouter)
 	rootRouter.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(string(secretKey)))

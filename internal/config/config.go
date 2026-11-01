@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/Sayfargo/yax-url-shortener/internal/audit"
 	"github.com/Sayfargo/yax-url-shortener/internal/core/db/postgres"
 	"github.com/Sayfargo/yax-url-shortener/internal/core/filestorage"
 	"github.com/Sayfargo/yax-url-shortener/internal/core/httpserver"
@@ -21,6 +22,11 @@ type Config struct {
 	Server      *httpserver.Config
 	DB          *postgres.Config
 	FileStorage *filestorage.Config
+	Audit       *audit.Config
+}
+
+type parser interface {
+	ParseEnv() error
 }
 
 func Load(args []string) (*Config, error) {
@@ -30,27 +36,23 @@ func Load(args []string) (*Config, error) {
 	serverConfig := httpserver.RegisterFlags(fs)
 	dbConfig := postgres.RegisterFlags(fs)
 	fileStorageConfig := filestorage.RegisterFlags(fs)
+	auditConfig := audit.RegisterFlags(fs)
 
 	if err := fs.Parse(args); err != nil {
 		return nil, fmt.Errorf("failed to parse flags: %w", err)
 	}
 
-	if err := serverConfig.ParseEnv(); err != nil {
-		return nil, fmt.Errorf("server config: %w", err)
-	}
-
-	if err := dbConfig.ParseEnv(); err != nil {
-		return nil, fmt.Errorf("db config: %w", err)
-	}
-
-	if err := fileStorageConfig.ParseEnv(); err != nil {
-		return nil, fmt.Errorf("file storage config: %w", err)
+	for _, config := range []parser{serverConfig, dbConfig, fileStorageConfig, auditConfig} {
+		if err := config.ParseEnv(); err != nil {
+			return nil, fmt.Errorf("failed to parse env: %w", err)
+		}
 	}
 
 	return &Config{
 		Server:      serverConfig,
 		DB:          dbConfig,
 		FileStorage: fileStorageConfig,
+		Audit:       auditConfig,
 	}, nil
 
 }

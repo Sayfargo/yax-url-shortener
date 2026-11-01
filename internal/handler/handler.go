@@ -24,19 +24,26 @@ type URLShortener interface {
 	DeleteURLs(ctx context.Context, uid string, shortCodes ...string) error
 }
 
+type AuditService interface {
+	Shorten(ctx context.Context, userID, url string)
+	Follow(ctx context.Context, userID, url string)
+}
+
 type Handler struct {
-	service URLShortener
-	log     *slog.Logger
-	pool    *pgxpool.Pool
+	auditService AuditService
+	service      URLShortener
+	log          *slog.Logger
+	pool         *pgxpool.Pool
 }
 
 const maxBodySize = 1024 * 1024
 
-func New(service URLShortener, log *slog.Logger, pool *pgxpool.Pool) *Handler {
+func New(service URLShortener, log *slog.Logger, pool *pgxpool.Pool, auditService AuditService) *Handler {
 	return &Handler{
-		service: service,
-		log:     log,
-		pool:    pool,
+		auditService: auditService,
+		service:      service,
+		log:          log,
+		pool:         pool,
 	}
 }
 
@@ -333,6 +340,7 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.auditService.Follow(r.Context(), "", OriginalURL)
 	http.Redirect(w, r, OriginalURL, http.StatusTemporaryRedirect)
 
 }
@@ -422,6 +430,9 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
+	h.auditService.Shorten(r.Context(), uid, request.URL)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write(data)
@@ -491,6 +502,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	h.auditService.Shorten(r.Context(), uid, url)
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
