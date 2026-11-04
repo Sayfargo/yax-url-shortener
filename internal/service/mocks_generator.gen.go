@@ -36,8 +36,8 @@ func (_m *MockGenerator) EXPECT() *MockGenerator_Expecter {
 }
 
 // Generate provides a mock function for the type MockGenerator
-func (_mock *MockGenerator) Generate(alphabet string, size int) (string, error) {
-	ret := _mock.Called(alphabet, size)
+func (_mock *MockGenerator) Generate() (string, error) {
+	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Generate")
@@ -45,16 +45,16 @@ func (_mock *MockGenerator) Generate(alphabet string, size int) (string, error) 
 
 	var r0 string
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, int) (string, error)); ok {
-		return returnFunc(alphabet, size)
+	if returnFunc, ok := ret.Get(0).(func() (string, error)); ok {
+		return returnFunc()
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, int) string); ok {
-		r0 = returnFunc(alphabet, size)
+	if returnFunc, ok := ret.Get(0).(func() string); ok {
+		r0 = returnFunc()
 	} else {
 		r0 = ret.Get(0).(string)
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, int) error); ok {
-		r1 = returnFunc(alphabet, size)
+	if returnFunc, ok := ret.Get(1).(func() error); ok {
+		r1 = returnFunc()
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -67,26 +67,13 @@ type MockGenerator_Generate_Call struct {
 }
 
 // Generate is a helper method to define mock.On call
-//   - alphabet string
-//   - size int
-func (_e *MockGenerator_Expecter) Generate(alphabet any, size any) *MockGenerator_Generate_Call {
-	return &MockGenerator_Generate_Call{Call: _e.mock.On("Generate", alphabet, size)}
+func (_e *MockGenerator_Expecter) Generate() *MockGenerator_Generate_Call {
+	return &MockGenerator_Generate_Call{Call: _e.mock.On("Generate")}
 }
 
-func (_c *MockGenerator_Generate_Call) Run(run func(alphabet string, size int)) *MockGenerator_Generate_Call {
+func (_c *MockGenerator_Generate_Call) Run(run func()) *MockGenerator_Generate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
-		if args[0] != nil {
-			arg0 = args[0].(string)
-		}
-		var arg1 int
-		if args[1] != nil {
-			arg1 = args[1].(int)
-		}
-		run(
-			arg0,
-			arg1,
-		)
+		run()
 	})
 	return _c
 }
@@ -96,7 +83,7 @@ func (_c *MockGenerator_Generate_Call) Return(s string, err error) *MockGenerato
 	return _c
 }
 
-func (_c *MockGenerator_Generate_Call) RunAndReturn(run func(alphabet string, size int) (string, error)) *MockGenerator_Generate_Call {
+func (_c *MockGenerator_Generate_Call) RunAndReturn(run func() (string, error)) *MockGenerator_Generate_Call {
 	_c.Call.Return(run)
 	return _c
 }
