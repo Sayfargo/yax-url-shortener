@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"os"
 
+	_ "net/http/pprof"
+
+	"github.com/Sayfargo/yax-url-shortener/internal/audit"
 	"github.com/Sayfargo/yax-url-shortener/internal/config"
 	"github.com/Sayfargo/yax-url-shortener/internal/core/cache"
 	"github.com/Sayfargo/yax-url-shortener/internal/core/db/postgres"
@@ -16,9 +19,11 @@ import (
 	"github.com/Sayfargo/yax-url-shortener/internal/handler"
 	"github.com/Sayfargo/yax-url-shortener/internal/repository/url"
 	"github.com/Sayfargo/yax-url-shortener/internal/service"
+	"github.com/Sayfargo/yax-url-shortener/pkg/generator"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
 type App struct {
@@ -28,7 +33,11 @@ type App struct {
 	Service *service.URLShortenerService
 }
 
-const defaultSecretKey = "0123456789abcdef0123456789abcdef"
+const (
+	defaultSecretKey = "0123456789abcdef0123456789abcdef"
+	alphabet         = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	size             = 8
+)
 
 func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
@@ -43,6 +52,9 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 	rootRouter := chi.NewRouter()
 	rootRouter.Use(middleware.Logging(log))
 	rootRouter.Use(middleware.GzipCompress())
+
+	// pprof
+	rootRouter.Mount("/debug", chimiddleware.Profiler())
 
 	var (
 		db          *pgxpool.Pool
@@ -99,8 +111,39 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		activeRepo = url.NewInMemoryRepo(cacheStorage)
 	}
 
-	svc := service.New(activeRepo, new(service.GoNanoIDGenerator), cfg.Server.BaseURL, validator.New(), log)
-	h := handler.New(svc, log, db)
+	// Audit service initialization
+	publisher := audit.NewPublisher()
+
+	if cfg.Audit.File != "" {
+		fileSub, err := audit.NewFileSubscriber(cfg.Audit.File)
+		if err != nil {
+			log.Error("failed to initialize file subscriber for audit", "err", err)
+			return nil, fmt.Errorf("audit file subscriber init: %w", err)
+		}
+		publisher.Subscribe(fileSub)
+	}
+
+	if cfg.Audit.URL != "" {
+		httpSub := audit.NewHTTPSubscriber(cfg.Audit.URL)
+		if err != nil {
+			log.Error("failed to initialize HTTP subscriber for audit", "err", err)
+			return nil, fmt.Errorf("audit HTTP subscriber init: %w", err)
+		}
+		publisher.Subscribe(httpSub)
+	}
+
+	auditService := audit.NewAuditService(publisher)
+
+	// id generator
+
+	generator, err := generator.New(alphabet, size)
+	if err != nil {
+		log.Error("failed to initialize generator", "err", err)
+		return nil, fmt.Errorf("id generator init: %w", err)
+	}
+
+	svc := service.New(activeRepo, generator, cfg.Server.BaseURL, log)
+	h := handler.New(svc, log, db, auditService)
 	h.RegisterPublicAPI(rootRouter)
 	rootRouter.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(string(secretKey)))

@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"sync"
 	"time"
 
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
 	urlrepo "github.com/Sayfargo/yax-url-shortener/internal/repository/url"
-	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 type URLRepository interface {
@@ -24,10 +23,8 @@ type URLRepository interface {
 }
 
 type Generator interface {
-	Generate(alphabet string, size int) (string, error)
+	Generate() (string, error)
 }
-
-type GoNanoIDGenerator struct{}
 
 type DeletedTask struct {
 	UID        uuid.UUID
@@ -37,33 +34,27 @@ type DeletedTask struct {
 type Option func(*URLShortenerService)
 
 type URLShortenerService struct {
-	repo URLRepository
-
+	repo      URLRepository
 	generator Generator
 	log       *slog.Logger
-	validate  *validator.Validate
-
-	baseURL string
-
+	baseURL   string
+	// delete worker opts
 	deleteQueue      chan DeletedTask
 	deleteWorkerOnce sync.Once
-
-	deleteMaxSize int
-	deleteMaxWait time.Duration
+	deleteMaxSize    int
+	deleteMaxWait    time.Duration
 }
 
 func New(
 	repo URLRepository,
 	generator Generator,
 	baseURL string,
-	validate *validator.Validate,
 	log *slog.Logger,
 	opts ...Option,
 ) *URLShortenerService {
 	return &URLShortenerService{
 		repo:      repo,
 		generator: generator,
-		validate:  validate,
 		baseURL:   baseURL,
 		log:       log,
 
@@ -111,11 +102,6 @@ var (
 	ErrOriginalURLConflict             = errors.New("original url conflict")
 	ErrURLsNotFound                    = errors.New("no URLs found for user")
 	ErrURLIsDeleted                    = errors.New("requested URL has been deleted")
-)
-
-const (
-	alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	size     = 8
 )
 
 type CreateURLBatchRequest struct {
@@ -203,7 +189,7 @@ func (s *URLShortenerService) CreateURLBatch(ctx context.Context, req []CreateUR
 	resp := make([]CreateURLBatchResponse, len(req))
 
 	for i, item := range req {
-		if err := s.validate.Var(item.OriginalURL, "http_url"); err != nil {
+		if err := validateURL(item.OriginalURL); err != nil {
 			return nil, fmt.Errorf(
 				"got incorrect url on row #%d with id %s: %w",
 				i+1, item.CorrelationID,
@@ -211,7 +197,7 @@ func (s *URLShortenerService) CreateURLBatch(ctx context.Context, req []CreateUR
 			)
 		}
 
-		shortCode, err := s.generator.Generate(alphabet, size)
+		shortCode, err := s.generator.Generate()
 		if err != nil {
 			return nil, fmt.Errorf("generator generate: %w", err)
 
@@ -252,7 +238,7 @@ func (s *URLShortenerService) CreateURLBatch(ctx context.Context, req []CreateUR
 				"attempt", attempt+1,
 			)
 
-			shortCode, err := s.generator.Generate(alphabet, size)
+			shortCode, err := s.generator.Generate()
 			if err != nil {
 				return nil, fmt.Errorf("generator generate: %w", err)
 			}
@@ -300,13 +286,13 @@ func (s *URLShortenerService) CreateShortURL(ctx context.Context, url, uid strin
 		return "", fmt.Errorf("uuid from bytes: %w", err)
 	}
 
-	if err := s.validate.Var(url, "http_url"); err != nil {
+	if err := validateURL(url); err != nil {
 		return "", ErrIncorrectURL
 	}
 
 	for attempt := 0; attempt < 3; attempt++ {
 
-		shortCode, err := s.generator.Generate(alphabet, size)
+		shortCode, err := s.generator.Generate()
 		if err != nil {
 			return "", fmt.Errorf("generator generate: %w", err)
 		}
@@ -350,10 +336,17 @@ func (s *URLShortenerService) CreateShortURL(ctx context.Context, url, uid strin
 	return "", ErrShortCodeCollisionLimitExceeded
 }
 
-func (n *GoNanoIDGenerator) Generate(alphabet string, size int) (string, error) {
-	return gonanoid.Generate(alphabet, size)
-}
-
 func (s *URLShortenerService) buildShortedURL(shortCode string) string {
 	return s.baseURL + "/" + shortCode // Example: http://localhost:8080/EiXk21Dz
+}
+
+func validateURL(raw string) error {
+	u, err := url.ParseRequestURI(raw)
+	if err != nil {
+		return fmt.Errorf("parse request URI: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return errors.New("incorrect scheme")
+	}
+	return nil
 }

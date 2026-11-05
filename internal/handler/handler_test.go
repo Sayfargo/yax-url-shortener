@@ -25,6 +25,7 @@ import (
 
 func TestDeleteURLs_UnexpectedError(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	uid, err := uuid.NewUUID()
@@ -45,7 +46,7 @@ func TestDeleteURLs_UnexpectedError(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/api/user/urls", strings.NewReader(urls))
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 	rw := httptest.NewRecorder()
 
 	handler.DeleteURLs(rw, req)
@@ -58,6 +59,7 @@ func TestDeleteURLs_UnexpectedError(t *testing.T) {
 
 func TestDeleteURLs_EmptyShortCodes(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	uid, err := uuid.NewUUID()
@@ -69,7 +71,7 @@ func TestDeleteURLs_EmptyShortCodes(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/api/user/urls", strings.NewReader(urls))
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 	rw := httptest.NewRecorder()
 
 	handler.DeleteURLs(rw, req)
@@ -82,13 +84,14 @@ func TestDeleteURLs_EmptyShortCodes(t *testing.T) {
 
 func TestDeleteURLs_WithoutUserID(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	urls := `["short-code-1", "short-code-2"]`
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodDelete, "/api/user/urls", strings.NewReader(urls))
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 	rw := httptest.NewRecorder()
 
 	handler.DeleteURLs(rw, req)
@@ -101,6 +104,7 @@ func TestDeleteURLs_WithoutUserID(t *testing.T) {
 
 func TestDeleteURLs_Success(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	uid, err := uuid.NewUUID()
@@ -118,7 +122,7 @@ func TestDeleteURLs_Success(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/api/user/urls", strings.NewReader(urls))
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 	rw := httptest.NewRecorder()
 
 	handler.DeleteURLs(rw, req)
@@ -131,6 +135,7 @@ func TestDeleteURLs_Success(t *testing.T) {
 
 func TestGetURLs_UnexpectedError(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	uid, err := uuid.NewUUID()
@@ -147,7 +152,7 @@ func TestGetURLs_UnexpectedError(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/user/urls", nil)
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 	rw := httptest.NewRecorder()
 
 	handler.GetURLs(rw, req)
@@ -159,6 +164,7 @@ func TestGetURLs_UnexpectedError(t *testing.T) {
 
 func TestGetURLs_NoURLs(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	uid, err := uuid.NewUUID()
@@ -175,7 +181,7 @@ func TestGetURLs_NoURLs(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/user/urls", nil)
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 	rw := httptest.NewRecorder()
 
 	handler.GetURLs(rw, req)
@@ -187,6 +193,7 @@ func TestGetURLs_NoURLs(t *testing.T) {
 
 func TestGetURLs_Success(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	expected := `[{"short_url":"shorted-url","original_url":"original-url"}]`
@@ -210,7 +217,7 @@ func TestGetURLs_Success(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/user/urls", nil)
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 	rw := httptest.NewRecorder()
 
 	handler.GetURLs(rw, req)
@@ -227,6 +234,7 @@ func TestGetURLs_Success(t *testing.T) {
 
 func TestGetURLs_WithoutUserID(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	req := httptest.NewRequestWithContext(
@@ -236,7 +244,7 @@ func TestGetURLs_WithoutUserID(t *testing.T) {
 		nil,
 	)
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 	rw := httptest.NewRecorder()
 
 	handler.GetURLs(rw, req)
@@ -248,6 +256,7 @@ func TestGetURLs_WithoutUserID(t *testing.T) {
 
 func TestCreate_OriginalURLConflict(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	existingURL := "http://localhost:8080/HeZ1klEf"
@@ -261,6 +270,7 @@ func TestCreate_OriginalURLConflict(t *testing.T) {
 		CreateShortURL(mock.Anything, "https://google.com", mock.Anything).
 		Return(existingURL, service.ErrOriginalURLConflict).
 		Once()
+	mockAudit.EXPECT().Shorten(mock.Anything, uid.String(), "https://google.com")
 
 	req := httptest.NewRequestWithContext(
 		ctx,
@@ -269,7 +279,7 @@ func TestCreate_OriginalURLConflict(t *testing.T) {
 		strings.NewReader("https://google.com"),
 	)
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 
 	rw := httptest.NewRecorder()
 
@@ -300,12 +310,14 @@ func TestShorten_OriginalURLConflict(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	mockSvc.EXPECT().
 		CreateShortURL(mock.Anything, "https://google.com", mock.Anything).
 		Return(existingURL, service.ErrOriginalURLConflict).
 		Once()
+	mockAudit.EXPECT().Shorten(mock.Anything, uid.String(), "https://google.com")
 
 	request := ShortURLRequest{
 		URL: "https://google.com",
@@ -323,7 +335,7 @@ func TestShorten_OriginalURLConflict(t *testing.T) {
 
 	req.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 
 	rw := httptest.NewRecorder()
 
@@ -362,6 +374,7 @@ func TestShortenBatch_EmptyBatch(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	mockSvc.EXPECT().CreateURLBatch(mock.Anything, mock.Anything, mock.Anything).Return(nil, service.ErrEmptyBatch)
@@ -372,7 +385,7 @@ func TestShortenBatch_EmptyBatch(t *testing.T) {
 	userRequest := httptest.NewRequestWithContext(ctx, method, target, bytes.NewReader(data))
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger, nil)
+	handler := New(mockSvc, logger, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.ShortenBatch(rw, userRequest)
 
@@ -411,6 +424,7 @@ func TestShortenBatch_UnexpectedError(t *testing.T) {
 
 	mockSvc := NewMockURLShortener(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	mockAudit := NewMockAuditService(t)
 
 	mockSvc.EXPECT().CreateURLBatch(mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("unexpected error"))
 
@@ -420,7 +434,7 @@ func TestShortenBatch_UnexpectedError(t *testing.T) {
 	userRequest := httptest.NewRequestWithContext(ctx, method, target, bytes.NewReader(data))
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger, nil)
+	handler := New(mockSvc, logger, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.ShortenBatch(rw, userRequest)
 
@@ -456,6 +470,7 @@ func TestShortenBatch_CollisionLimitExceeded(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	mockSvc.EXPECT().CreateURLBatch(mock.Anything, mock.Anything, mock.Anything).Return(nil, service.ErrShortCodeCollisionLimitExceeded)
@@ -466,7 +481,7 @@ func TestShortenBatch_CollisionLimitExceeded(t *testing.T) {
 	userRequest := httptest.NewRequestWithContext(ctx, method, target, bytes.NewReader(data))
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger, nil)
+	handler := New(mockSvc, logger, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.ShortenBatch(rw, userRequest)
 
@@ -505,6 +520,7 @@ func TestShortenBatch_IncorrectURL(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	mockSvc.EXPECT().CreateURLBatch(mock.Anything, mock.Anything, mock.Anything).Return(nil, service.ErrIncorrectURL)
@@ -515,7 +531,7 @@ func TestShortenBatch_IncorrectURL(t *testing.T) {
 	userRequest := httptest.NewRequestWithContext(ctx, method, target, bytes.NewReader(data))
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger, nil)
+	handler := New(mockSvc, logger, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.ShortenBatch(rw, userRequest)
 
@@ -548,12 +564,13 @@ func TestShortenBatch_TooLargeBodyRequest(t *testing.T) {
 	require.Greater(t, len(payload), maxBodySize)
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	userRequest := httptest.NewRequestWithContext(ctx, method, target, bytes.NewReader(payload))
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger, nil)
+	handler := New(mockSvc, logger, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.ShortenBatch(rw, userRequest)
 
@@ -579,12 +596,13 @@ func TestShortenBatch_InvalidJSON(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	userRequest := httptest.NewRequestWithContext(ctx, method, target, body)
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger, nil)
+	handler := New(mockSvc, logger, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.ShortenBatch(rw, userRequest)
 
@@ -634,6 +652,7 @@ func TestShortenBatch_Success(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	mockSvc.EXPECT().CreateURLBatch(mock.Anything, mock.Anything, mock.Anything).Return(expectedResp, nil)
@@ -655,7 +674,7 @@ func TestShortenBatch_Success(t *testing.T) {
 	userRequest := httptest.NewRequestWithContext(ctx, method, target, bytes.NewReader(data))
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, log, nil)
+	handler := New(mockSvc, log, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.ShortenBatch(rw, userRequest)
 
@@ -692,6 +711,7 @@ func TestCreate_ErrorResponses(t *testing.T) {
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
 			mockSvc := NewMockURLShortener(t)
+			mockAudit := NewMockAuditService(t)
 			logger := slog.New(
 				slog.NewTextHandler(
 					io.Discard,
@@ -702,7 +722,7 @@ func TestCreate_ErrorResponses(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/shorten", strings.NewReader("bred..k"))
 
-			handler := New(mockSvc, logger, nil)
+			handler := New(mockSvc, logger, nil, mockAudit)
 			rw := httptest.NewRecorder()
 			handler.Create(rw, req)
 
@@ -729,6 +749,7 @@ func TestRedirect_ErrorResponses(t *testing.T) {
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
 			mockSvc := NewMockURLShortener(t)
+			mockAudit := NewMockAuditService(t)
 			logger := slog.New(
 				slog.NewTextHandler(
 					io.Discard,
@@ -745,7 +766,7 @@ func TestRedirect_ErrorResponses(t *testing.T) {
 			chiCtx.URLParams.Add("id", test.shortCode)
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-			handler := New(mockSvc, logger, nil)
+			handler := New(mockSvc, logger, nil, mockAudit)
 			rw := httptest.NewRecorder()
 			handler.Redirect(rw, req)
 
@@ -764,6 +785,7 @@ func TestRedirect_InvalidShortCode(t *testing.T) {
 	target := fmt.Sprintf("/%s", shortCode)
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	logger := slog.New(
 		slog.NewTextHandler(
 			io.Discard,
@@ -777,7 +799,7 @@ func TestRedirect_InvalidShortCode(t *testing.T) {
 	chiCtx.URLParams.Add("id", shortCode)
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-	handler := New(mockSvc, logger, nil)
+	handler := New(mockSvc, logger, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.Redirect(rw, req)
 
@@ -797,6 +819,7 @@ func TestRedirect_Success(t *testing.T) {
 	expectedLocation := "https://practicum.yandex.ru/go-developer-basic/?utm_source=ya&utm_medium=cpc&utm_campaign=Yan_Sch_RF_Prog_goDeba_b2c_Gener_Regular_Double_460&utm_content=sty_search:s_none:cid_711044074:gid_5766687058:kw_---autotargeting:pid_205766687058:aid_1913818178131297445:crid_0:rid_205766687058:p_1:pty_premium:mty_:mkw_:dty_desktop:cgcid_26898027:rn_%D0%A0%D0%BE%D1%81%D1%82%D0%BE%D0%B2-%D0%BD%D0%B0-%D0%94%D0%BE%D0%BD%D1%83:rid_39&etext=2202.KjoxDN06I-3sj5_fsSRWOB0TSMATnrks0_yjlXz4VIt9yG7I4nH0y2lfhULhTcKlw9ebyjxB_nUVfFb_9yTKt2Z6cGluc2h2Z2RqbWF2b3c.9a6e93b16369f6b76e7982ecada5deb67b2bdcce&yclid=11936302318399520767"
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	logger := slog.New(
 		slog.NewTextHandler(
 			io.Discard,
@@ -804,6 +827,7 @@ func TestRedirect_Success(t *testing.T) {
 		),
 	)
 	mockSvc.EXPECT().GetOriginalURL(mock.Anything, shortCode).Return(expectedLocation, nil)
+	mockAudit.EXPECT().Follow(mock.Anything, "", expectedLocation)
 
 	req := httptest.NewRequest(method, target, nil)
 	// Так как используется chi, передаем в роутер для chi ctx значение с shortCode
@@ -811,7 +835,7 @@ func TestRedirect_Success(t *testing.T) {
 	chiCtx.URLParams.Add("id", shortCode)
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chiCtx))
 
-	handler := New(mockSvc, logger, nil)
+	handler := New(mockSvc, logger, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.Redirect(rw, req)
 
@@ -843,12 +867,14 @@ func TestCreate_Success(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	mockSvc.EXPECT().CreateShortURL(mock.Anything, url, mock.Anything).Return(expected, nil)
+	mockAudit.EXPECT().Shorten(mock.Anything, uid.String(), url)
 
 	req := httptest.NewRequestWithContext(ctx, method, target, strings.NewReader(url))
 	req.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger, nil)
+	handler := New(mockSvc, logger, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.Create(rw, req)
 
@@ -884,6 +910,7 @@ func TestShorten_ErrorResponses(t *testing.T) {
 	for _, test := range testcases {
 		t.Run(test.name, func(t *testing.T) {
 			mockSvc := NewMockURLShortener(t)
+			mockAudit := NewMockAuditService(t)
 			logger := slog.New(
 				slog.NewTextHandler(
 					io.Discard,
@@ -902,7 +929,7 @@ func TestShorten_ErrorResponses(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/shorten", bytes.NewReader(data))
 
-			handler := New(mockSvc, logger, nil)
+			handler := New(mockSvc, logger, nil, mockAudit)
 			rw := httptest.NewRecorder()
 			handler.Shorten(rw, req)
 
@@ -930,6 +957,7 @@ func TestShorten_CreateShortURL(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkeys.UserIDKey, uid.String())
 
 	mockSvc := NewMockURLShortener(t)
+	mockAudit := NewMockAuditService(t)
 	logger := slog.New(
 		slog.NewTextHandler(
 			io.Discard,
@@ -937,6 +965,7 @@ func TestShorten_CreateShortURL(t *testing.T) {
 		),
 	)
 	mockSvc.EXPECT().CreateShortURL(mock.Anything, url, mock.Anything).Return(expected, nil)
+	mockAudit.EXPECT().Shorten(mock.Anything, uid.String(), url)
 
 	request := ShortURLRequest{
 		URL: url,
@@ -948,7 +977,7 @@ func TestShorten_CreateShortURL(t *testing.T) {
 	userRequest := httptest.NewRequestWithContext(ctx, method, target, bytes.NewReader(data))
 	userRequest.Header.Set("Content-Type", header)
 
-	handler := New(mockSvc, logger, nil)
+	handler := New(mockSvc, logger, nil, mockAudit)
 	rw := httptest.NewRecorder()
 	handler.Shorten(rw, userRequest)
 
