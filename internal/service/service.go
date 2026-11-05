@@ -26,8 +26,6 @@ type Generator interface {
 	Generate() (string, error)
 }
 
-type GoNanoIDGenerator struct{}
-
 type DeletedTask struct {
 	UID        uuid.UUID
 	ShortCodes []string
@@ -36,18 +34,15 @@ type DeletedTask struct {
 type Option func(*URLShortenerService)
 
 type URLShortenerService struct {
-	repo URLRepository
-
+	repo      URLRepository
 	generator Generator
 	log       *slog.Logger
-
-	baseURL string
-
+	baseURL   string
+	// delete worker opts
 	deleteQueue      chan DeletedTask
 	deleteWorkerOnce sync.Once
-
-	deleteMaxSize int
-	deleteMaxWait time.Duration
+	deleteMaxSize    int
+	deleteMaxWait    time.Duration
 }
 
 func New(
