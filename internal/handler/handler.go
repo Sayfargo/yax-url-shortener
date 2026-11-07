@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// URLShortener описывает контракт взаимодействия с сервисом бизнес-логики сокращения ссылок.
 type URLShortener interface {
 	CreateShortURL(ctx context.Context, url, uid string) (string, error)
 	CreateURLBatch(ctx context.Context, req []service.CreateURLBatchRequest, uid string) ([]service.CreateURLBatchResponse, error)
@@ -24,11 +25,14 @@ type URLShortener interface {
 	DeleteURLs(ctx context.Context, uid string, shortCodes ...string) error
 }
 
+// AuditService определяет методы логирования действий пользователей для системы аудита.
 type AuditService interface {
 	Shorten(ctx context.Context, userID, url string)
 	Follow(ctx context.Context, userID, url string)
 }
 
+// Handler группирует HTTP-эндпоинты и инкапсулирует зависимости: логер, базу данных
+// и сервисы бизнес-логики/аудита.
 type Handler struct {
 	auditService AuditService
 	service      URLShortener
@@ -38,6 +42,7 @@ type Handler struct {
 
 const maxBodySize = 1024 * 1024
 
+// New инициализирует и возвращает новый экземпляр HTTP-обработчика [Handler].
 func New(service URLShortener, log *slog.Logger, pool *pgxpool.Pool, auditService AuditService) *Handler {
 	return &Handler{
 		auditService: auditService,
@@ -47,11 +52,15 @@ func New(service URLShortener, log *slog.Logger, pool *pgxpool.Pool, auditServic
 	}
 }
 
+// RegisterPublicAPI регистрирует эндпоинты, доступные без прохождения авторизации
+// и проверки сессионных кук (например, редиректы и проверка здоровья).
 func (h *Handler) RegisterPublicAPI(r chi.Router) {
 	r.Get("/{id}", h.Redirect)
 	r.Get("/ping", h.Ping)
 }
 
+// RegisterPrivateAPI регистрирует эндпоинты, защищенные авторизационным middleware.
+// Данные маршруты требуют обязательного наличия идентификатора пользователя в контексте.
 func (h *Handler) RegisterPrivateAPI(r chi.Router) {
 	r.Post("/", h.Create)
 	r.Post("/api/shorten", h.Shorten)
@@ -60,6 +69,15 @@ func (h *Handler) RegisterPrivateAPI(r chi.Router) {
 	r.Delete("/api/user/urls", h.DeleteURLs)
 }
 
+// DeleteURLs принимает массив коротких кодов для их асинхронного удаления.
+// Запрос ограничивается размером в 1 МБ ([maxBodySize]).
+//
+// Возвращаемые HTTP-статусы:
+//   - 202 Accepted: Запрос на удаление успешно принят в обработку.
+//   - 400 Bad Request: Передан пустой массив или тело запроса повреждено.
+//   - 413 Payload Too Large: Тело запроса превышает допустимый лимит 1 МБ.
+//   - 499 Client Closed Request: Клиент разорвал соединение до завершения операции.
+//   - 500 Internal Server Error: Ошибка извлечения UID или неожиданный сбой сервиса.
 func (h *Handler) DeleteURLs(w http.ResponseWriter, r *http.Request) {
 
 	uid, ok := h.getUserID(r.Context())
@@ -130,6 +148,13 @@ func (h *Handler) DeleteURLs(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
+// GetURLs возвращает JSON-массив всех сокращенных ссылок, принадлежащих текущему авторизованному пользователю.
+//
+// Возвращаемые HTTP-статусы:
+//   - 200 OK: Успешный возврат списка ссылок в формате JSON-массива [GetURLsResponse].
+//   - 240 NoContent: У пользователя пока нет созданных сокращенных ссылок.
+//   - 499 Client Closed Request: Клиент закрыл соединение.
+//   - 500 Internal Server Error: Внутренний сбой сервера или ошибка сериализации JSON.
 func (h *Handler) GetURLs(w http.ResponseWriter, r *http.Request) {
 
 	uid, ok := h.getUserID(r.Context())
@@ -175,6 +200,15 @@ func (h *Handler) GetURLs(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
+// ShortenBatch выполняет массовое (пакетное) сокращение переданного массива ссылок.
+// Метод принимает массив элементов [CreateURLBatchRequest] и возвращает массив [CreateURLBatchResponse].
+//
+// Возвращаемые HTTP-статусы:
+//   - 201 Created: Пакет успешно обработан, ссылки сгенерированы.
+//   - 400 Bad Request: Пустой пакет, некорректный формат ссылок или ошибка JSON-декодера.
+//   - 413 Payload Too Large: Размер JSON-пакета превышает лимит в 1 МБ.
+//   - 499 Client Closed Request: Клиент разорвал соединение.
+//   - 500 Internal Server Error: Системная ошибка коллизии кодов или сбой базы данных.
 func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 
 	var request []CreateURLBatchRequest
@@ -282,6 +316,12 @@ func (h *Handler) ShortenBatch(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// Ping проверяет доступность подключения к базе данных PostgreSQL.
+// Используется балансировщиками нагрузки и системами мониторинга в качестве liveness/readiness пробы.
+//
+// Возвращаемые HTTP-статусы:
+//   - 200 OK: Подключение активно, база данных отвечает на запросы.
+//   - 500 Internal Server Error: Пул соединений равен nil или база данных не ответила на Ping.
 func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
 
 	if h.pool == nil {
@@ -297,6 +337,15 @@ func (h *Handler) Ping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// Redirect извлекает короткий код URL из параметров пути роутера, ищет оригинальный
+// веб-адрес и осуществляет HTTP-редирект.
+//
+// Возвращаемые HTTP-статусы:
+//   - 307 Temporary Redirect: Успешный редирект на найденный оригинальный URL-адрес.
+//   - 400 Bad Request: Идентификатор ссылки (параметр пути) оказался пустым.
+//   - 404 Not Found: Переданный короткий код отсутствует в системе.
+//   - 410 Gone: Запрашиваемая ссылка была удалена пользователем ранее.
+//   - 500 Internal Server Error: Системная ошибка кэша или неожиданный сбой при поиске.
 func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 
 	shortCode := chi.URLParam(r, "id")
@@ -342,9 +391,19 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 
 	h.auditService.Follow(r.Context(), "", OriginalURL)
 	http.Redirect(w, r, OriginalURL, http.StatusTemporaryRedirect)
-
 }
 
+// Shorten принимает JSON-запрос [ShortURLRequest] с длинным URL-адресом,
+// генерирует короткую ссылку и возвращает JSON-ответ [ShortURLResponse].
+//
+// После успешного создания ссылки метод отправляет событие сокращения в [AuditService].
+//
+// Возвращаемые HTTP-статусы:
+//   - 201 Created: Ссылка успешно сокращена и сохранена.
+//   - 409 Conflict: Переданный URL уже был сокращен ранее. Метод возвращает существующий код [service.ErrOriginalURLConflict].
+//   - 400 Bad Request: Некорректный формат JSON или передан невалидный веб-адрес [service.ErrIncorrectURL].
+//   - 499 Client Closed Request: Клиент прервал соединение (контекст отменен).
+//   - 500 Internal Server Error: Превышен лимит коллизий [service.ErrShortCodeCollisionLimitExceeded] или произошел сбой БД.
 func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 	var (
 		request  ShortURLRequest
@@ -438,6 +497,18 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
+// Create принимает длинный URL-адрес в виде сырой строки (plain text) в теле запроса,
+// генерирует короткую ссылку и возвращает результат текстовой строкой с типом "text/plain".
+//
+// Чтение тела запроса принудительно ограничивается размером в 1 МБ с помощью [io.LimitReader].
+// После успешного создания ссылки метод отправляет событие сокращения в [AuditService].
+//
+// Возвращаемые HTTP-статусы:
+//   - 201 Created: Ссылка успешно сокращена и сохранена.
+//   - 409 Conflict: Переданный URL уже существует в системе. Метод возвращает существующий код [service.ErrOriginalURLConflict].
+//   - 400 Bad Request: Ошибка чтения тела или передан невалидный веб-адрес [service.ErrIncorrectURL].
+//   - 499 Client Closed Request: Клиент разорвал соединение до завершения генерации.
+//   - 500 Internal Server Error: Внутренний сбой генератора или репозитория.
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	uid, ok := h.getUserID(r.Context())
