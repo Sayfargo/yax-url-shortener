@@ -13,16 +13,24 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// PostgresRepository предоставляет методы для выполнения CRUD-операций
+// над сокращенными URL-адресами с использованием пула соединений PostgreSQL.
 type PostgresRepository struct {
 	pool *pgxpool.Pool
 }
 
+// NewPgRepo создает и возвращает новый экземпляр [PostgresRepository].
 func NewPgRepo(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{
 		pool: pool,
 	}
 }
 
+// SoftDeleteURLs выполняет мягкое (логическое) удаление пачки коротких кодов,
+// принадлежащих конкретному пользователю, переключая флаг is_deleted в true.
+//
+// Метод предварительно проверяет состояние контекста [context.Context].
+// Возвращает ошибку при сбое выполнения SQL-запроса.
 func (pr *PostgresRepository) SoftDeleteURLs(ctx context.Context, uid uuid.UUID, shortCodes ...string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -43,6 +51,11 @@ func (pr *PostgresRepository) SoftDeleteURLs(ctx context.Context, uid uuid.UUID,
 	return nil
 }
 
+// GetURLs возвращает список всех активных (не удаленных логически) записей [model.ShortenedURL],
+// созданных указанным пользователем [uid].
+//
+// Метод предварительно проверяет состояние контекста [context.Context].
+// Если записей не найдено, возвращает специальную ошибку [ErrNoRows].
 func (pr *PostgresRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.ShortenedURL, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
@@ -80,6 +93,12 @@ func (pr *PostgresRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]mod
 	return urls, nil
 }
 
+// Get возвращает оригинальный длинный URL по его короткому буквенно-цифровому коду.
+//
+// Метод предварительно проверяет состояние контекста [context.Context].
+// Возвращаемые ошибки:
+//   - [ErrNotExists]: если переданный короткий код отсутствует в базе данных.
+//   - [ErrRowGone]: если запись найдена, но ссылка была мягко удалена пользователем.
 func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string, error) {
 	if ctx.Err() != nil {
 		return "", ctx.Err()
@@ -108,6 +127,12 @@ func (pr *PostgresRepository) Get(ctx context.Context, shortCode string) (string
 
 }
 
+// CreateBatch атомарно сохраняет массив сокращенных ссылок в рамках единой транзакции
+// с использованием конвейерных пакетных запросов PostgreSQL ([pgx.Batch]).
+//
+// Метод предварительно проверяет состояние контекста [context.Context].
+// В случае коллизии дубликата короткого кода, транзакция откатывается, а метод возвращает
+// типизированную ошибку [BatchConflictError], содержащую индекс проблемного элемента.
 func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedURLs []model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -165,6 +190,16 @@ func (pr *PostgresRepository) CreateBatch(ctx context.Context, shortenedURLs []m
 	return nil
 }
 
+// Create сохраняет новую сокращенную ссылку в базу данных.
+//
+// Метод предварительно проверяет состояние контекста [context.Context].
+// Логика обработки конфликтов уникальности:
+//  1. В случае совпадения генерируемого ShortCode с существующим в БД, метод
+//     перехватывает ошибку нарушения уникальности констраинта и возвращает [ErrConflictShortCode].
+//  2. При попытке повторного сохранения одной и той же ссылки (конфликт original_url) запрос
+//     выполняет ON CONFLICT DO UPDATE. При этом скрытый системный атрибут xmax позволяет определить,
+//     была ли запись добавлена (xmax = 0) или обновлена (xmax > 0). Если произошел апдейт дубликата,
+//     метод возвращает ошибку [OriginalURLConflictError], содержащую ранее сгенерированный код.
 func (pr *PostgresRepository) Create(ctx context.Context, shortenedURL model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()

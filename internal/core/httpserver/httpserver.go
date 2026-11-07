@@ -9,12 +9,15 @@ import (
 	"time"
 )
 
+// HTTPServer инкапсулирует стандартный HTTP-сервер и логер для управления
+// его жизненным циклом.
 type HTTPServer struct {
-	sv *http.Server
-
+	sv  *http.Server
 	log *slog.Logger
 }
 
+// New создает и инициализирует новый экземпляр [HTTPServer] с переданным
+// маршрутизатором (обработчиком запросов) и конфигурацией.
 func New(handler http.Handler, cfg *Config, log *slog.Logger) *HTTPServer {
 	return &HTTPServer{
 		sv: &http.Server{
@@ -25,6 +28,14 @@ func New(handler http.Handler, cfg *Config, log *slog.Logger) *HTTPServer {
 	}
 }
 
+// Run запускает HTTP-сервер на прослушивание входящих соединений в отдельной горутине
+// и блокирует текущий поток до возникновения ошибки или отмены контекста [context.Context].
+//
+// При отмене переданного контекста метод автоматически инициирует процесс плавной остановки
+// (graceful shutdown), выделяя фиксированный таймаут на завершение активных запросов.
+// Если плавный останов завершается неудачно, сервер принудительно закрывает соединения.
+//
+// Возвращает ошибку запуска или ошибку останова, если они возникли.
 func (s *HTTPServer) Run(ctx context.Context) error {
 
 	chErr := make(chan error, 1)

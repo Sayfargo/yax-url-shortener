@@ -11,6 +11,9 @@ import (
 	"github.com/Sayfargo/yax-url-shortener/internal/model"
 )
 
+// FileStorage представляет собой потокобезопасное хранилище данных на диске.
+// Запись производится построчно, где каждая строка является валидным JSON-объектом.
+// Конкурентный доступ синхронизируется с помощью [sync.Mutex].
 type FileStorage struct {
 	file    *os.File
 	encoder *json.Encoder
@@ -18,6 +21,11 @@ type FileStorage struct {
 	mu sync.Mutex
 }
 
+// Init открывает или создает файл по пути, указанному в [Config], в режиме
+// чтения/записи и добавления данных (append-only), после чего возвращает [FileStorage].
+//
+// Файл инициализируется с правами доступа 0666. Возвращает ошибку, если не удалось
+// получить доступ к файлу.
 func Init(cfg *Config) (*FileStorage, error) {
 	file, err := os.OpenFile(cfg.FilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
@@ -31,6 +39,11 @@ func Init(cfg *Config) (*FileStorage, error) {
 	}, nil
 }
 
+// RewriteURLs полностью очищает текущее содержимое файла и перезаписывает его
+// переданным слайсом [model.ShortenedURL].
+//
+// Метод сбрасывает указатель файла в начало, выполняет очистку через Truncate
+// и последовательно кодирует элементы. Возвращает обернутую ошибку при сбое ввода-вывода.
 func (fs *FileStorage) RewriteURLs(shortenedURLs []model.ShortenedURL) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -54,6 +67,8 @@ func (fs *FileStorage) RewriteURLs(shortenedURLs []model.ShortenedURL) error {
 	return nil
 }
 
+// WriteURL сериализует одну структуру [model.ShortenedURL] в JSON и дописывает
+// ее в конец файла с символом новой строки.
 func (fs *FileStorage) WriteURL(shortenedURL model.ShortenedURL) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -61,6 +76,10 @@ func (fs *FileStorage) WriteURL(shortenedURL model.ShortenedURL) error {
 	return fs.encoder.Encode(shortenedURL)
 }
 
+// WriteURLs последовательно сериализует и дописывает в конец файла
+// массив структур [model.ShortenedURL].
+//
+// Возвращает ошибку при первом же сбое записи.
 func (fs *FileStorage) WriteURLs(shortenedURLs []model.ShortenedURL) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -74,6 +93,11 @@ func (fs *FileStorage) WriteURLs(shortenedURLs []model.ShortenedURL) error {
 	return nil
 }
 
+// ReadURLs считывает все сохраненные записи [model.ShortenedURL] из файла.
+//
+// Перед началом чтения метод сбрасывает позицию указателя файла в начало (SeekStart).
+// Чтение выполняется построчно с использованием [bufio.Scanner].
+// Возвращает слайс прочитанных URL или ошибку декодирования/чтения.
 func (fs *FileStorage) ReadURLs() ([]model.ShortenedURL, error) {
 
 	fs.mu.Lock()
@@ -104,6 +128,8 @@ func (fs *FileStorage) ReadURLs() ([]model.ShortenedURL, error) {
 
 }
 
+// Close закрывает нижележащий дескриптор файла [os.File].
+// После вызова этого метода любые операции чтения или записи будут завершаться ошибкой.
 func (fs *FileStorage) Close() error {
 	return fs.file.Close()
 }
