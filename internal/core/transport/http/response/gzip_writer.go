@@ -7,17 +7,16 @@ import (
 )
 
 type gzipWriter struct {
-	// Имплементим методы от оригинала
 	w  http.ResponseWriter
 	zw *gzip.Writer
 
-	// Если заголовок не был проставлен - сами поставим
 	hasHeader bool
-	// Если Content-Type НЕ application/json или text/html то не сжимаем
-	// и пишем через оригинальный responswWriter
-	compress bool
+	compress  bool
 }
 
+// NewGzipWriter оборачивает исходный [http.ResponseWriter] и возвращает [gzipWriter].
+// Метод инициализирует внутренний Gzip-компрессор, однако фактическое сжатие
+// начнется только после проверки заголовка Content-Type в методе WriteHeader.
 func NewGzipWriter(w http.ResponseWriter) *gzipWriter {
 	zw := gzip.NewWriter(w)
 
@@ -28,10 +27,17 @@ func NewGzipWriter(w http.ResponseWriter) *gzipWriter {
 	}
 }
 
+// Header возвращает карту заголовков (HTTP Headers) нижележащего [http.ResponseWriter].
+// Соответствует интерфейсу [http.ResponseWriter].
 func (gw *gzipWriter) Header() http.Header {
 	return gw.w.Header()
 }
 
+// Write записывает данные в поток ответа. Если метод WriteHeader еще не был вызван явным образом,
+// Write автоматически вызывает его со статусом [http.StatusOK] перед отправкой байт.
+//
+// В зависимости от флага компрессии, данные пишутся либо напрямую в сеть, либо через Gzip-сжиматель.
+// Соответствует интерфейсу [http.ResponseWriter].
 func (gw *gzipWriter) Write(p []byte) (int, error) {
 
 	if !gw.hasHeader {
@@ -45,6 +51,13 @@ func (gw *gzipWriter) Write(p []byte) (int, error) {
 	return gw.zw.Write(p)
 }
 
+// WriteHeader отправляет клиенту HTTP-статус ответа. Метод автоматически проверяет
+// заголовок Content-Type и включает сжатие только для "application/json" и "text/html".
+//
+// Если сжатие активировано, метод также выставляет исходящий заголовок "Content-Encoding: gzip".
+// Статус-коды, не подразумевающие тела ответа ([http.StatusNoContent] и [http.StatusNotModified]),
+// полностью игнорируются системой сжатия.
+// Соответствует интерфейсу [http.ResponseWriter].
 func (gw *gzipWriter) WriteHeader(statusCode int) {
 	// Статус коды без тела ответа игноирруем
 	if statusCode != http.StatusNoContent &&
@@ -70,6 +83,8 @@ func (gw *gzipWriter) WriteHeader(statusCode int) {
 	gw.hasHeader = true
 }
 
+// Close финализирует процесс сжатия и сбрасывает оставшиеся буферы Gzip в сетевой поток.
+// Если сжатие контента не было активировано, метод мгновенно возвращает nil без выполнения операций.
 func (gw *gzipWriter) Close() error {
 
 	if !gw.compress {
