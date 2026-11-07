@@ -1,3 +1,6 @@
+// Модуль app отвечает за оркестрацию, сборку и жизненный цикл всего приложения.
+// Он инициализирует зависимости, настраивает маршрутизацию, управляет
+// переключением репозиториев и обеспечивает graceful shutdown.
 package app
 
 import (
@@ -26,10 +29,16 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
+// App инкапсулирует в себе все ключевые компоненты запущенного приложения:
+// HTTP-сервер, пулы соединений и слой бизнес-логики.
 type App struct {
-	Server  *httpserver.HTTPServer
-	DB      *pgxpool.Pool
+	// Server управляет жизненным циклом HTTP-сервера.
+	Server *httpserver.HTTPServer
+	// DB хранит пул соединений с PostgreSQL. Может быть nil, если выбран другой тип хранилища.
+	DB *pgxpool.Pool
+	// Storage управляет дескриптором файла для сохранения кэша на диск. Может быть nil.
 	Storage *filestorage.FileStorage
+	// Service представляет собой слой ключевой бизнес-логики по сокращению URL.
 	Service *service.URLShortenerService
 }
 
@@ -39,6 +48,16 @@ const (
 	size             = 8
 )
 
+// New создает, связывает зависимости и инициализирует новый экземпляр [App].
+//
+// Функция выполняет следующие шаги:
+// 1. Инициализирует middleware шифрования (куки/авторизация), считывая ключ из CK_KEY.
+// 2. Настраивает глобальный роутер [chi.Mux], добавляя логирование, сжатие и эндпоинты pprof (/debug).
+// 3. Динамически определяет и поднимает нужный тип репозитория (DB, File, In-Memory) на основе [config.Config].
+// 4. Настраивает подписки для модуля аудита (в файл и/или по HTTP).
+// 5. Инициализирует генератор идентификаторов, сервисы и хэндлеры API.
+//
+// Возвращает инициализированный экземпляр [App] или ошибку, если инициализация любого из компонентов сорвалась.
 func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
 	// secret key
@@ -62,12 +81,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		activeRepo  service.URLRepository
 		err         error
 	)
-	/*
-		Выбираем хранилище в зависимости от конфигурации или примененных флагов
-		Если флаг или env для DB были заданы, то используем базу данных
-		Если флаг или env для DB не были заданы, но были заданы для File storage - используем File storage
-		Если флаг или env не были заданы ни для DB ни для File storage - используем in memory
-	*/
+
 	switch cfg.StorageType() {
 	case config.StorageTypeDB:
 		db, err = postgres.New(*cfg.DB, log)
@@ -125,10 +139,6 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
 	if cfg.Audit.URL != "" {
 		httpSub := audit.NewHTTPSubscriber(cfg.Audit.URL)
-		if err != nil {
-			log.Error("failed to initialize HTTP subscriber for audit", "err", err)
-			return nil, fmt.Errorf("audit HTTP subscriber init: %w", err)
-		}
 		publisher.Subscribe(httpSub)
 	}
 
@@ -162,6 +172,11 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
 }
 
+// Run запускает асинхронные воркеры очистки и разворачивает основной HTTP-сервер.
+// Метод блокирует текущую горутину до тех пор, пока контекст [context.Context] не будет отменен.
+//
+// Перед завершением метод гарантирует безопасное закрытие всех активных ресурсов:
+// файлового хранилища (сброс кэша) и пула базы данных PostgreSQL через [errors.Join].
 func (a *App) Run(ctx context.Context) (errs error) {
 
 	defer func() {
