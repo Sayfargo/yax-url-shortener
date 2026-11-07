@@ -31,6 +31,9 @@ test:
 		-binary-path=$(SERVER_DIR)/$(BINARY_NAME) \
 		-source-path=.
 
+stress-test:
+	k6 run -e SERVER_ADDRESS=$$SERVER_ADDRESS shorten.js
+
 clean:
 	rm -f $(SERVER_DIR)/$(BINARY_NAME)
 	@echo "Cleared!"

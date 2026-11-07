@@ -7,7 +7,7 @@ export const options = {
 };
 
 export default function () {
-    const baseUrl = 'http://localhost:8082';
+    const baseUrl = __ENV.SERVER_ADDRESS || 'http://localhost:8080';
     
     const url = `https://example.com/search?q=${__VU}-${__ITER}`;
     const payload = JSON.stringify({
