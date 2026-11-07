@@ -1,3 +1,6 @@
+// Моудль config объединяет конфигурационные структуры всех подсистем приложения
+// (сервера, базы данных, файлового хранилища и аудита) и предоставляет
+// единую точку инициализации параметров.
 package config
 
 import (
@@ -10,25 +13,43 @@ import (
 	"github.com/Sayfargo/yax-url-shortener/internal/core/httpserver"
 )
 
+// StorageType определяет стратегию (тип) используемого хранилища данных.
 type StorageType string
 
 const (
-	StorageTypeDB     StorageType = "database"
-	StorageTypeFile   StorageType = "file"
+	// StorageTypeDB указывает на использование реляционной базы данных PostgreSQL.
+	StorageTypeDB StorageType = "database"
+	// StorageTypeFile указывает на сохранение данных в локальном файле.
+	StorageTypeFile StorageType = "file"
+	// StorageTypeMemory указывает на работу в оперативной памяти (in-memory) без сохранения состояния.
 	StorageTypeMemory StorageType = "memory"
 )
 
+// Config представляет глобальную конфигурацию всего приложения,
+// агрегирующую настройки отдельных независимых модулей.
 type Config struct {
-	Server      *httpserver.Config
-	DB          *postgres.Config
+	// Server содержит параметры конфигурации HTTP-сервера.
+	Server *httpserver.Config
+	// DB содержит параметры подключения к PostgreSQL.
+	DB *postgres.Config
+	// FileStorage содержит настройки путей для файлового сохранения.
 	FileStorage *filestorage.Config
-	Audit       *audit.Config
+	// Audit содержит настройки адресов и файлов для системы логирования аудита.
+	Audit *audit.Config
 }
 
 type parser interface {
 	ParseEnv() error
 }
 
+// Load выполняет сборку конфигурации всего приложения на основе переданных аргументов командной строки [args].
+//
+// Процесс инициализации параметров происходит в два этапа:
+// 1. Из [args] извлекаются и регистрируются флаги для всех подсистем.
+// 2. Поля структур дополняются или перетираются значениями из соответствующих переменных окружения.
+//
+// Таким образом, переменные окружения имеют более высокий приоритет, чем флаги.
+// Возвращает ошибку, если разбор флагов или переменных окружения завершился со сбоем.
 func Load(args []string) (*Config, error) {
 
 	fs := flag.NewFlagSet("config", flag.ContinueOnError)
@@ -57,6 +78,8 @@ func Load(args []string) (*Config, error) {
 
 }
 
+// StorageType динамически вычисляет и возвращает целевой [StorageType]
+// на основе заполненных параметров конфигурации.
 func (c *Config) StorageType() StorageType {
 
 	if c.DB != nil && c.DB.DBDsn != "" {
