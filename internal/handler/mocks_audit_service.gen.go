@@ -5,8 +5,6 @@
 package handler
 
 import (
-	"context"
-
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -38,8 +36,8 @@ func (_m *MockAuditService) EXPECT() *MockAuditService_Expecter {
 }
 
 // Follow provides a mock function for the type MockAuditService
-func (_mock *MockAuditService) Follow(ctx context.Context, userID string, url string) {
-	_mock.Called(ctx, userID, url)
+func (_mock *MockAuditService) Follow(userID string, url string) {
+	_mock.Called(userID, url)
 	return
 }
 
@@ -49,31 +47,25 @@ type MockAuditService_Follow_Call struct {
 }
 
 // Follow is a helper method to define mock.On call
-//   - ctx context.Context
 //   - userID string
 //   - url string
-func (_e *MockAuditService_Expecter) Follow(ctx any, userID any, url any) *MockAuditService_Follow_Call {
-	return &MockAuditService_Follow_Call{Call: _e.mock.On("Follow", ctx, userID, url)}
+func (_e *MockAuditService_Expecter) Follow(userID any, url any) *MockAuditService_Follow_Call {
+	return &MockAuditService_Follow_Call{Call: _e.mock.On("Follow", userID, url)}
 }
 
-func (_c *MockAuditService_Follow_Call) Run(run func(ctx context.Context, userID string, url string)) *MockAuditService_Follow_Call {
+func (_c *MockAuditService_Follow_Call) Run(run func(userID string, url string)) *MockAuditService_Follow_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
+		var arg0 string
 		if args[0] != nil {
-			arg0 = args[0].(context.Context)
+			arg0 = args[0].(string)
 		}
 		var arg1 string
 		if args[1] != nil {
 			arg1 = args[1].(string)
 		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
@@ -84,14 +76,14 @@ func (_c *MockAuditService_Follow_Call) Return() *MockAuditService_Follow_Call {
 	return _c
 }
 
-func (_c *MockAuditService_Follow_Call) RunAndReturn(run func(ctx context.Context, userID string, url string)) *MockAuditService_Follow_Call {
+func (_c *MockAuditService_Follow_Call) RunAndReturn(run func(userID string, url string)) *MockAuditService_Follow_Call {
 	_c.Run(run)
 	return _c
 }
 
 // Shorten provides a mock function for the type MockAuditService
-func (_mock *MockAuditService) Shorten(ctx context.Context, userID string, url string) {
-	_mock.Called(ctx, userID, url)
+func (_mock *MockAuditService) Shorten(userID string, url string) {
+	_mock.Called(userID, url)
 	return
 }
 
@@ -101,31 +93,25 @@ type MockAuditService_Shorten_Call struct {
 }
 
 // Shorten is a helper method to define mock.On call
-//   - ctx context.Context
 //   - userID string
 //   - url string
-func (_e *MockAuditService_Expecter) Shorten(ctx any, userID any, url any) *MockAuditService_Shorten_Call {
-	return &MockAuditService_Shorten_Call{Call: _e.mock.On("Shorten", ctx, userID, url)}
+func (_e *MockAuditService_Expecter) Shorten(userID any, url any) *MockAuditService_Shorten_Call {
+	return &MockAuditService_Shorten_Call{Call: _e.mock.On("Shorten", userID, url)}
 }
 
-func (_c *MockAuditService_Shorten_Call) Run(run func(ctx context.Context, userID string, url string)) *MockAuditService_Shorten_Call {
+func (_c *MockAuditService_Shorten_Call) Run(run func(userID string, url string)) *MockAuditService_Shorten_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
+		var arg0 string
 		if args[0] != nil {
-			arg0 = args[0].(context.Context)
+			arg0 = args[0].(string)
 		}
 		var arg1 string
 		if args[1] != nil {
 			arg1 = args[1].(string)
 		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
@@ -136,7 +122,7 @@ func (_c *MockAuditService_Shorten_Call) Return() *MockAuditService_Shorten_Call
 	return _c
 }
 
-func (_c *MockAuditService_Shorten_Call) RunAndReturn(run func(ctx context.Context, userID string, url string)) *MockAuditService_Shorten_Call {
+func (_c *MockAuditService_Shorten_Call) RunAndReturn(run func(userID string, url string)) *MockAuditService_Shorten_Call {
 	_c.Run(run)
 	return _c
 }

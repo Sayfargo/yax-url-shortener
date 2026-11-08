@@ -282,5 +282,5 @@ func (m *mockURLShortener) DeleteURLs(ctx context.Context, uid string, shortCode
 
 type mockAuditService struct{}
 
-func (m *mockAuditService) Shorten(ctx context.Context, userID, url string) {}
-func (m *mockAuditService) Follow(ctx context.Context, userID, url string)  {}
+func (m *mockAuditService) Shorten(userID, url string) {}
+func (m *mockAuditService) Follow(userID, url string)  {}

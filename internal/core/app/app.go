@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	_ "net/http/pprof"
 
@@ -33,14 +34,15 @@ import (
 // HTTP-сервер, пулы соединений и слой бизнес-логики.
 type App struct {
 	// Server управляет жизненным циклом HTTP-сервера.
-	Server *httpserver.HTTPServer
+	server *httpserver.HTTPServer
 	// DB хранит пул соединений с PostgreSQL. Может быть nil, если выбран другой тип хранилища.
-	DB *pgxpool.Pool
+	db *pgxpool.Pool
 	// Storage управляет дескриптором файла для сохранения кэша на диск. Может быть nil.
-	Storage *filestorage.FileStorage
+	storage *filestorage.FileStorage
 	// Service представляет собой слой ключевой бизнес-логики по сокращению URL.
-	Service      *service.URLShortenerService
-	AuditFileSub *audit.FileSubscriber
+	svc          *service.URLShortenerService
+	auditFileSub *audit.FileSubscriber
+	auditSvc     *audit.AuditService
 }
 
 const (
@@ -138,7 +140,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 			return nil, fmt.Errorf("audit file subscriber init: %w", err)
 		}
 		publisher.Subscribe(fileSub)
-		app.AuditFileSub = fileSub
+		app.auditFileSub = fileSub
 	}
 
 	if cfg.Audit.URL != "" {
@@ -146,7 +148,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		publisher.Subscribe(httpSub)
 	}
 
-	auditService := audit.NewAuditService(publisher, log)
+	auditService := audit.NewAuditService(publisher, log, 1024, 16, 15*time.Second)
 
 	// id generator
 
@@ -167,10 +169,11 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
 	httpServer := httpserver.New(rootRouter, cfg.Server, log)
 
-	app.Server = httpServer
-	app.DB = db
-	app.Storage = fileStorage
-	app.Service = svc
+	app.server = httpServer
+	app.db = db
+	app.storage = fileStorage
+	app.svc = svc
+	app.auditSvc = auditService
 
 	return app, nil
 
@@ -185,26 +188,27 @@ func (a *App) Run(ctx context.Context) (errs error) {
 
 	defer func() {
 
-		if a.Storage != nil {
-			if err := a.Storage.Close(); err != nil {
+		if a.storage != nil {
+			if err := a.storage.Close(); err != nil {
 				errs = errors.Join(errs, fmt.Errorf("file storage close: %w", err))
 			}
 		}
 
-		if a.AuditFileSub != nil {
-			if err := a.AuditFileSub.Close(); err != nil {
+		if a.auditFileSub != nil {
+			if err := a.auditFileSub.Close(); err != nil {
 				errs = errors.Join(errs, fmt.Errorf("audit file sub close: %w", err))
 			}
 		}
 
-		if a.DB != nil {
-			a.DB.Close()
+		if a.db != nil {
+			a.db.Close()
 		}
 	}()
 
-	a.Service.StartDeleteWorker(ctx)
+	a.svc.StartDeleteWorker(ctx)
+	a.auditSvc.StartAuditWorkerPool(ctx)
 
-	if err := a.Server.Run(ctx); err != nil {
+	if err := a.server.Run(ctx); err != nil {
 		errs = errors.Join(errs, fmt.Errorf("server run: %w", err))
 	}
 

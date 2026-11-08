@@ -54,10 +54,10 @@ func (p *Publisher) Subscribe(sub Subscriber) {
 // Если один или несколько подписчиков возвращают ошибку, Publish собирает их все
 // с помощью [errors.Join] и возвращает общую ошибку после завершения обхода.
 func (p *Publisher) Publish(ctx context.Context, e *Event) error {
-	p.mu.Lock()
+	p.mu.RLock()
 	subs := make([]Subscriber, len(p.subs))
 	copy(subs, p.subs)
-	p.mu.Unlock()
+	p.mu.RUnlock()
 
 	var (
 		errs  error
@@ -67,7 +67,12 @@ func (p *Publisher) Publish(ctx context.Context, e *Event) error {
 	)
 
 	for _, s := range subs {
-		sem <- struct{}{}
+		select {
+		case <-ctx.Done():
+			errCh <- ctx.Err()
+			continue
+		case sem <- struct{}{}:
+		}
 		wg.Go(func() {
 			if err := s.Notify(ctx, e); err != nil {
 				errCh <- err

@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 )
 
 // Example демонстрирует базовый процесс настройки системы аудита:
 // создание издателя, регистрацию файлового подписчика и отправку
 // событий через высокоуровневый AuditService.
 func Example() {
-	ctx := context.Background()
 
 	// Инициализируем издателя (Publisher)
 	publisher := NewPublisher()
@@ -35,11 +35,11 @@ func Example() {
 	publisher.Subscribe(fileSub)
 
 	// Создаем сервис-обертку поверх издателя для удобного вызова в коде бизнес-логики
-	auditService := NewAuditService(publisher, slog.New(slog.DiscardHandler))
+	auditService := NewAuditService(publisher, slog.New(slog.DiscardHandler), 100, 6, 1*time.Second)
 
 	// Фиксируем события в аудит (внутри используется time.Now(), в лог пойдет реальный TS)
-	auditService.Shorten(ctx, "user_abc", "https://google.com")
-	auditService.Follow(ctx, "user_xyz", "https://short.url")
+	auditService.Shorten("user_abc", "https://google.com")
+	auditService.Follow("user_xyz", "https://short.url")
 
 	// Закрываем файл перед чтением, чтобы сбросить буферы на диск
 	_ = fileSub.Close()

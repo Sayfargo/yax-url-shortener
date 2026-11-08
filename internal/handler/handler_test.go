@@ -270,7 +270,7 @@ func TestCreate_OriginalURLConflict(t *testing.T) {
 		CreateShortURL(mock.Anything, "https://google.com", mock.Anything).
 		Return(existingURL, service.ErrOriginalURLConflict).
 		Once()
-	mockAudit.EXPECT().Shorten(mock.Anything, uid.String(), "https://google.com")
+	mockAudit.EXPECT().Shorten(uid.String(), "https://google.com")
 
 	req := httptest.NewRequestWithContext(
 		ctx,
@@ -317,7 +317,7 @@ func TestShorten_OriginalURLConflict(t *testing.T) {
 		CreateShortURL(mock.Anything, "https://google.com", mock.Anything).
 		Return(existingURL, service.ErrOriginalURLConflict).
 		Once()
-	mockAudit.EXPECT().Shorten(mock.Anything, uid.String(), "https://google.com")
+	mockAudit.EXPECT().Shorten(uid.String(), "https://google.com")
 
 	request := ShortURLRequest{
 		URL: "https://google.com",
@@ -827,7 +827,7 @@ func TestRedirect_Success(t *testing.T) {
 		),
 	)
 	mockSvc.EXPECT().GetOriginalURL(mock.Anything, shortCode).Return(expectedLocation, nil)
-	mockAudit.EXPECT().Follow(mock.Anything, "", expectedLocation)
+	mockAudit.EXPECT().Follow("", expectedLocation)
 
 	req := httptest.NewRequest(method, target, nil)
 	// Так как используется chi, передаем в роутер для chi ctx значение с shortCode
@@ -869,7 +869,7 @@ func TestCreate_Success(t *testing.T) {
 	mockSvc := NewMockURLShortener(t)
 	mockAudit := NewMockAuditService(t)
 	mockSvc.EXPECT().CreateShortURL(mock.Anything, url, mock.Anything).Return(expected, nil)
-	mockAudit.EXPECT().Shorten(mock.Anything, uid.String(), url)
+	mockAudit.EXPECT().Shorten(uid.String(), url)
 
 	req := httptest.NewRequestWithContext(ctx, method, target, strings.NewReader(url))
 	req.Header.Set("Content-Type", header)
@@ -965,7 +965,7 @@ func TestShorten_CreateShortURL(t *testing.T) {
 		),
 	)
 	mockSvc.EXPECT().CreateShortURL(mock.Anything, url, mock.Anything).Return(expected, nil)
-	mockAudit.EXPECT().Shorten(mock.Anything, uid.String(), url)
+	mockAudit.EXPECT().Shorten(uid.String(), url)
 
 	request := ShortURLRequest{
 		URL: url,

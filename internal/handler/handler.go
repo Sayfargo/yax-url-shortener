@@ -27,8 +27,8 @@ type URLShortener interface {
 
 // AuditService определяет методы логирования действий пользователей для системы аудита.
 type AuditService interface {
-	Shorten(ctx context.Context, userID, url string)
-	Follow(ctx context.Context, userID, url string)
+	Shorten(userID, url string)
+	Follow(userID, url string)
 }
 
 // Handler группирует HTTP-эндпоинты и инкапсулирует зависимости: логер, базу данных
@@ -389,7 +389,7 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditService.Follow(r.Context(), "", OriginalURL)
+	h.auditService.Follow("", OriginalURL)
 	http.Redirect(w, r, OriginalURL, http.StatusTemporaryRedirect)
 }
 
@@ -490,7 +490,7 @@ func (h *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditService.Shorten(r.Context(), uid, request.URL)
+	h.auditService.Shorten(uid, request.URL)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -574,7 +574,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.auditService.Shorten(r.Context(), uid, url)
+	h.auditService.Shorten(uid, url)
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
