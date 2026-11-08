@@ -17,7 +17,7 @@ func BenchmarkGeneratorGenerate(b *testing.B) {
 	}
 
 	b.Run("my-generator", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := gen.Generate()
 			if err != nil {
 				b.Fatalf("failed to generate: %v", err)
@@ -26,7 +26,7 @@ func BenchmarkGeneratorGenerate(b *testing.B) {
 	})
 
 	b.Run("gonanoid-generator", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := gonanoid.Generate(alphabet, size)
 			if err != nil {
 				b.Fatalf("failed to generate: %v", err)

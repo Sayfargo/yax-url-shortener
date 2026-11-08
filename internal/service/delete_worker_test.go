@@ -76,6 +76,7 @@ func BenchmarkDeleteWorker(b *testing.B) {
 	}
 
 	var total int64
+
 	for i := 0; i < b.N; i++ {
 		total += int64(len(tasks[i%len(tasks)].ShortCodes))
 	}
@@ -83,10 +84,10 @@ func BenchmarkDeleteWorker(b *testing.B) {
 	mockRepo := &MockURLRepo{done: make(chan struct{}, 1), target: total}
 	svc := &URLShortenerService{
 		repo:          mockRepo,
-		deleteQueue:   make(chan DeletedTask, 1000),
+		deleteQueue:   make(chan DeletedTask, b.N+1),
 		log:           log,
 		deleteMaxSize: 10,
-		deleteMaxWait: time.Millisecond * 250,
+		deleteMaxWait: time.Millisecond * 5,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -97,9 +98,13 @@ func BenchmarkDeleteWorker(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
-		svc.deleteQueue <- tasks[i%len(tasks)]
+	idx := 0
+	for b.Loop() {
+		svc.deleteQueue <- tasks[idx%len(tasks)]
+		idx++
 	}
+
+	b.StopTimer()
 
 	select {
 	case <-mockRepo.done:

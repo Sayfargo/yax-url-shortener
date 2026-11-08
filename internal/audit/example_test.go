@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 )
 
@@ -34,7 +35,7 @@ func Example() {
 	publisher.Subscribe(fileSub)
 
 	// Создаем сервис-обертку поверх издателя для удобного вызова в коде бизнес-логики
-	auditService := NewAuditService(publisher)
+	auditService := NewAuditService(publisher, slog.New(slog.DiscardHandler))
 
 	// Фиксируем события в аудит (внутри используется time.Now(), в лог пойдет реальный TS)
 	auditService.Shorten(ctx, "user_abc", "https://google.com")

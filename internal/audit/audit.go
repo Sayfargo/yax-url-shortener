@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"errors"
+	"sync"
 )
 
 // Event представляет запись события аудита для URL Shortener Service.
@@ -31,6 +32,7 @@ type Subscriber interface {
 // событий аудита всем зарегистрированным подписчикам.
 type Publisher struct {
 	subs []Subscriber
+	mu   sync.RWMutex
 }
 
 // NewPublisher конструктор для инициализации нового экземпляра Publisher ready-to-use.
@@ -43,6 +45,8 @@ func NewPublisher() *Publisher {
 // Subscribe регистрирует нового подписчика в системе.
 // Подписчик будет получать все последующие события, отправленные через метод Publish.
 func (p *Publisher) Subscribe(sub Subscriber) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.subs = append(p.subs, sub)
 }
 
@@ -50,13 +54,35 @@ func (p *Publisher) Subscribe(sub Subscriber) {
 // Если один или несколько подписчиков возвращают ошибку, Publish собирает их все
 // с помощью [errors.Join] и возвращает общую ошибку после завершения обхода.
 func (p *Publisher) Publish(ctx context.Context, e *Event) error {
-	var errs error
+	p.mu.Lock()
+	subs := make([]Subscriber, len(p.subs))
+	copy(subs, p.subs)
+	p.mu.Unlock()
 
-	for _, s := range p.subs {
-		err := s.Notify(ctx, e)
-		if err != nil {
-			errs = errors.Join(errs, err)
-		}
+	var (
+		errs  error
+		wg    sync.WaitGroup
+		sem   = make(chan struct{}, 16)
+		errCh = make(chan error, len(subs))
+	)
+
+	for _, s := range subs {
+		sem <- struct{}{}
+		wg.Go(func() {
+			if err := s.Notify(ctx, e); err != nil {
+				errCh <- err
+			}
+			<-sem
+		})
+	}
+
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
+
+	for err := range errCh {
+		errs = errors.Join(errs, err)
 	}
 
 	return errs

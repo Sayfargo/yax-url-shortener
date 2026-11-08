@@ -39,7 +39,8 @@ type App struct {
 	// Storage управляет дескриптором файла для сохранения кэша на диск. Может быть nil.
 	Storage *filestorage.FileStorage
 	// Service представляет собой слой ключевой бизнес-логики по сокращению URL.
-	Service *service.URLShortenerService
+	Service      *service.URLShortenerService
+	auditFileSub *audit.FileSubscriber
 }
 
 const (
@@ -59,6 +60,8 @@ const (
 //
 // Возвращает инициализированный экземпляр [App] или ошибку, если инициализация любого из компонентов сорвалась.
 func New(cfg *config.Config, log *slog.Logger) (*App, error) {
+
+	app := &App{}
 
 	// secret key
 	secretKey := os.Getenv("CK_KEY")
@@ -135,6 +138,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 			return nil, fmt.Errorf("audit file subscriber init: %w", err)
 		}
 		publisher.Subscribe(fileSub)
+		app.auditFileSub = fileSub
 	}
 
 	if cfg.Audit.URL != "" {
@@ -142,7 +146,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 		publisher.Subscribe(httpSub)
 	}
 
-	auditService := audit.NewAuditService(publisher)
+	auditService := audit.NewAuditService(publisher, log)
 
 	// id generator
 
@@ -163,12 +167,12 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 
 	httpServer := httpserver.New(rootRouter, cfg.Server, log)
 
-	return &App{
-		Server:  httpServer,
-		DB:      db,
-		Storage: fileStorage,
-		Service: svc,
-	}, nil
+	app.Server = httpServer
+	app.DB = db
+	app.Storage = fileStorage
+	app.Service = svc
+
+	return app, nil
 
 }
 
@@ -185,6 +189,10 @@ func (a *App) Run(ctx context.Context) (errs error) {
 			if err := a.Storage.Close(); err != nil {
 				errs = errors.Join(errs, fmt.Errorf("file storage close: %w", err))
 			}
+		}
+
+		if err := a.auditFileSub.Close(); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("audit file sub close: %w", err))
 		}
 
 		if a.DB != nil {

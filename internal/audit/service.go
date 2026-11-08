@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"log/slog"
 	"time"
 )
 
@@ -12,13 +13,15 @@ import (
 // временные метки и типы действий.
 type AuditService struct {
 	publisher *Publisher
+	l         *slog.Logger
 }
 
 // NewAuditService создает и возвращает новый экземпляр [AuditService],
 // использующий переданный [Publisher] для отправки событий.
-func NewAuditService(publisher *Publisher) *AuditService {
+func NewAuditService(publisher *Publisher, logger *slog.Logger) *AuditService {
 	return &AuditService{
 		publisher: publisher,
+		l:         logger,
 	}
 }
 
@@ -33,7 +36,7 @@ func (a *AuditService) Shorten(ctx context.Context, userID, url string) {
 		URL:    url,
 	}
 
-	_ = a.publisher.Publish(ctx, event)
+	a.publish(ctx, event)
 }
 
 // Follow регистрирует в аудите событие перехода по сокращенной ссылке (действие "follow").
@@ -47,5 +50,23 @@ func (a *AuditService) Follow(ctx context.Context, userID, url string) {
 		URL:    url,
 	}
 
-	_ = a.publisher.Publish(ctx, event)
+	a.publish(ctx, event)
+}
+
+func (a *AuditService) publish(ctx context.Context, e *Event) {
+	if err := a.publisher.Publish(ctx, e); err != nil {
+		if errs, ok := err.(interface{ Unwrap() []error }); ok {
+			for _, e := range errs.Unwrap() {
+				a.l.Error(
+					"failed to publish event",
+					"err", e,
+				)
+			}
+		} else {
+			a.l.Error(
+				"failed to publish event",
+				"err", err,
+			)
+		}
+	}
 }

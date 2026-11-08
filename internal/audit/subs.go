@@ -1,23 +1,30 @@
 package audit
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 )
 
 // FileSubscriber записывает входящие события аудита в файл в формате JSON Lines (JSONL).
-// Каждое событие сериализуется в одну строку и завершается символом новой строки.
+//
+// Для минимизации аллокаций памяти и снижения нагрузки на сборщик мусора (GC)
+// при высоконагруженном кодировании используется внутренний пул буферов [sync.Pool].
 type FileSubscriber struct {
 	file *os.File
+	mu   sync.Mutex
+	pool sync.Pool
 }
 
 // NewFileSubscriber открывает или создает файл по указанному пути [filePath]
-// в режиме добавления данных (append-only) и возвращает инициализированный [FileSubscriber].
+// в режиме добавления данных (append-only) и возвращает инициализированный [FileSubscriber]
+// с преднастроенным пулом байтовых буферов.
 //
 // Файл создается с правами доступа 0644. Возвращает ошибку, если не удалось открыть файл.
 func NewFileSubscriber(filePath string) (*FileSubscriber, error) {
@@ -25,24 +32,41 @@ func NewFileSubscriber(filePath string) (*FileSubscriber, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &FileSubscriber{file: file}, nil
+	return &FileSubscriber{
+		file: file,
+		// переиспуользуемый буффер
+		pool: sync.Pool{
+			New: func() any {
+				return bytes.NewBuffer(make([]byte, 0, 1024))
+			},
+		},
+	}, nil
 }
 
 // Notify сериализует событие [Event] в JSON и записывает его в файл.
 // Соответствует интерфейсу [Subscriber].
 //
-// Возвращает обернутую ошибку маршалинга или ошибку ввода-вывода при записи на диск.
+// Операция кодирования выполняется параллельно вне критической секции с использованием
+// буфера из пула. Потокобезопасная запись на диск гарантируется мьютексом.
+// Возвращает обернутую ошибку кодирования или ошибку ввода-вывода при записи на диск.
 func (fs *FileSubscriber) Notify(ctx context.Context, event *Event) error {
-	data, err := json.Marshal(event)
-	if err != nil {
-		return fmt.Errorf("json marshal event: %w", err)
+
+	buff := fs.pool.Get().(*bytes.Buffer)
+	buff.Reset()
+	defer fs.pool.Put(buff)
+
+	if err := json.NewEncoder(buff).Encode(event); err != nil {
+		return fmt.Errorf("json encode event: %w", err)
 	}
 
-	_, err = fs.file.Write(
-		append(data, '\n'),
-	)
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 
-	return err
+	if _, err := fs.file.Write(buff.Bytes()); err != nil {
+		return fmt.Errorf("file write: %w", err)
+	}
+
+	return nil
 }
 
 // Close закрывает дескриптор файла, связанный с [FileSubscriber].
