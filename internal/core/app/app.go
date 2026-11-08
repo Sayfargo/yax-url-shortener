@@ -40,7 +40,7 @@ type App struct {
 	Storage *filestorage.FileStorage
 	// Service представляет собой слой ключевой бизнес-логики по сокращению URL.
 	Service      *service.URLShortenerService
-	auditFileSub *audit.FileSubscriber
+	AuditFileSub *audit.FileSubscriber
 }
 
 const (
@@ -138,7 +138,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 			return nil, fmt.Errorf("audit file subscriber init: %w", err)
 		}
 		publisher.Subscribe(fileSub)
-		app.auditFileSub = fileSub
+		app.AuditFileSub = fileSub
 	}
 
 	if cfg.Audit.URL != "" {
@@ -191,8 +191,10 @@ func (a *App) Run(ctx context.Context) (errs error) {
 			}
 		}
 
-		if err := a.auditFileSub.Close(); err != nil {
-			errs = errors.Join(errs, fmt.Errorf("audit file sub close: %w", err))
+		if a.AuditFileSub != nil {
+			if err := a.AuditFileSub.Close(); err != nil {
+				errs = errors.Join(errs, fmt.Errorf("audit file sub close: %w", err))
+			}
 		}
 
 		if a.DB != nil {
