@@ -116,12 +116,12 @@ func (a *AuditService) pooling(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			a.flushOverflow(ctx)
+			a.flushOverflow()
 		}
 	}
 }
 
-func (a *AuditService) flushOverflow(ctx context.Context) {
+func (a *AuditService) flushOverflow() {
 	a.mu.Lock()
 	if len(a.overflow) == 0 {
 		a.mu.Unlock()
@@ -140,8 +140,6 @@ func (a *AuditService) flushOverflow(ctx context.Context) {
 
 	for _, event := range events {
 		select {
-		case <-ctx.Done():
-			return
 		case a.jobs <- event:
 		default:
 			remainingEvents = append(remainingEvents, event)
