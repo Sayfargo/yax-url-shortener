@@ -212,6 +212,13 @@ func (a *App) Run(ctx context.Context) (errs error) {
 		errs = errors.Join(errs, fmt.Errorf("server run: %w", err))
 	}
 
+	a.svc.Wait()
+
+	graceCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	a.auditSvc.Shutdown(graceCtx)
+
 	if errs != nil {
 		return errs
 	}

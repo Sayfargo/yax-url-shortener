@@ -69,7 +69,6 @@ func (p *Publisher) Publish(ctx context.Context, e *Event) error {
 	for _, s := range subs {
 		select {
 		case <-ctx.Done():
-			errCh <- ctx.Err()
 			continue
 		case sem <- struct{}{}:
 		}

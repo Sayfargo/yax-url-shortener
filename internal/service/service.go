@@ -50,6 +50,7 @@ type URLShortenerService struct {
 	deleteWorkerOnce sync.Once
 	deleteMaxSize    int
 	deleteMaxWait    time.Duration
+	wg               sync.WaitGroup
 }
 
 // New инициализирует и возвращает новый экземпляр [URLShortenerService].
@@ -99,8 +100,16 @@ func WithDeleteQueue(chanQueueSize, buffMaxSize int, timerMaxWait time.Duration)
 // обработки пакетов удаления ссылок.
 func (s *URLShortenerService) StartDeleteWorker(ctx context.Context) {
 	s.deleteWorkerOnce.Do(func() {
-		go s.deleteWorker(ctx)
+		s.wg.Go(func() {
+			s.deleteWorker(ctx)
+		})
 	})
+}
+
+// Wait дожидается окончания работы фонового воркера удаления перед тем,
+// как завершить работу приложения.
+func (s *URLShortenerService) Wait() {
+	s.wg.Wait()
 }
 
 var (

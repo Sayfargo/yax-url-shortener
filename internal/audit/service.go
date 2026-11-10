@@ -7,12 +7,13 @@ import (
 	"time"
 )
 
-// IPublisher определяет интерфейс для отправки и регистрации обработчиков
+// EventPublisher определяет интерфейс для отправки и регистрации обработчиков
+//
 // событий аудита.
 //
 // Реализация интерфейса отвечает за фактическую доставку событий
 // (например, в файл, HTTP endpoint или другой внешний источник).
-type IPublisher interface {
+type EventPublisher interface {
 	Publish(ctx context.Context, e *Event) error
 	Subscribe(sub Subscriber)
 }
@@ -22,13 +23,13 @@ type IPublisher interface {
 //
 // Сервис автоматически формирует объекты Event, добавляет временные метки,
 // определяет тип действия и выполняет асинхронную отправку событий через
-// переданный IPublisher.
+// переданный EventPublisher.
 //
 // Для повышения надёжности используется внутренняя очередь задач и временное
 // хранилище переполнения, позволяющее не терять события при кратковременной
 // недоступности обработчиков.
 type AuditService struct {
-	publisher IPublisher
+	publisher EventPublisher
 	l         *slog.Logger
 	// worker opts
 	jobs            chan *Event
@@ -48,7 +49,7 @@ type AuditService struct {
 // workers определяет количество фоновых обработчиков очереди.
 // pollingInterval задаёт период проверки временного хранилища переполнения.
 func NewAuditService(
-	publisher IPublisher,
+	publisher EventPublisher,
 	logger *slog.Logger,
 	queueSize int,
 	workers int,
@@ -67,7 +68,7 @@ func NewAuditService(
 // StartAuditWorkerPool запускает фоновые обработчики событий аудита.
 //
 // Метод запускает worker pool, который получает события из внутренней очереди
-// и передает их в IPublisher.
+// и передает их в EventPublisher.
 //
 // Дополнительно запускается периодический обработчик overflow-очереди,
 // который пытается повторно отправить события, не попавшие в основную очередь.
@@ -83,31 +84,18 @@ func (a *AuditService) StartAuditWorkerPool(ctx context.Context) {
 		}
 
 		a.wg.Go(func() {
-			a.pooling(ctx)
+			a.polling(ctx)
 		})
-
-		go func() {
-			<-ctx.Done()
-			a.shutdown()
-		}()
 	})
 }
 
 func (a *AuditService) work(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case job, ok := <-a.jobs:
-			if !ok {
-				return
-			}
-			a.publish(ctx, job)
-		}
+	for job := range a.jobs {
+		a.publish(ctx, job)
 	}
 }
 
-func (a *AuditService) pooling(ctx context.Context) {
+func (a *AuditService) polling(ctx context.Context) {
 	ticker := time.NewTicker(a.pollingInterval)
 	defer ticker.Stop()
 
@@ -148,7 +136,6 @@ func (a *AuditService) flushOverflow() {
 
 	if len(remainingEvents) > 0 {
 		a.mu.Lock()
-		// держим строгую очередь, добавляя новые пришедшие события в конец, чтобы все были довольны
 		a.overflow = append(remainingEvents, a.overflow...)
 		a.l.Debug(
 			"some events still blocked due overflow queue",
@@ -159,6 +146,11 @@ func (a *AuditService) flushOverflow() {
 }
 
 func (a *AuditService) enqueue(e *Event) {
+
+	if _, ok := <-a.jobs; !ok {
+		return
+	}
+
 	select {
 	case a.jobs <- e:
 	default:
@@ -172,40 +164,37 @@ func (a *AuditService) enqueue(e *Event) {
 	}
 }
 
-func (a *AuditService) shutdown() {
+func (a *AuditService) shutdown(ctx context.Context) {
 	a.l.Info(
 		"audit service shutting down",
 		"pending_jobs", len(a.jobs),
 	)
 
-	// дожидаемся всех воркеров в том числе пулинг воркера
-	a.wg.Wait()
-	// даём 5 секунд времени на то чтобы разгребсти оставшиеся джобы
-	shutDownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	close(a.jobs)
 
-	for {
-		select {
-		case event := <-a.jobs:
-			a.publish(shutDownCtx, event)
-		default:
-			goto overflow
-		}
-	}
-	// если джобов больше не осталось отправляем разребать накопившийся overflow
-overflow:
+	a.wg.Wait()
+
 	a.mu.Lock()
 	events := a.overflow
 	a.overflow = nil
 	a.mu.Unlock()
 
 	for _, event := range events {
-		a.publish(shutDownCtx, event)
+		if err := a.publisher.Publish(ctx, event); err != nil {
+			a.l.Error(
+				"failed to publish event",
+				"err", err,
+			)
+		}
 	}
 
 	a.l.Info(
 		"audit shutdown finished",
 	)
+}
+
+func (a *AuditService) Shutdown(ctx context.Context) {
+	a.shutdown(ctx)
 }
 
 // Shorten регистрирует событие сокращения ссылки.
@@ -241,11 +230,21 @@ func (a *AuditService) Follow(userID, url string) {
 }
 
 func (a *AuditService) publish(ctx context.Context, e *Event) {
-	if err := a.publisher.Publish(ctx, e); err != nil {
+	// игнорируем отмену главного контекста
+	wrapped, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancel()
+
+	// при отмене главного контекста даём время на то, чтобы Publish доработал
+	// если нет, то принудительное завершение работы через отмену прокинутого контекста
+	stop := context.AfterFunc(ctx, func() {
+		time.AfterFunc(3*time.Second, cancel)
+	})
+	defer stop()
+
+	if err := a.publisher.Publish(wrapped, e); err != nil {
 		a.l.Error(
 			"failed to publish event",
 			"err", err,
 		)
-
 	}
 }
