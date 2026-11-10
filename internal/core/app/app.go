@@ -46,9 +46,8 @@ type App struct {
 }
 
 const (
-	defaultSecretKey = "0123456789abcdef0123456789abcdef"
-	alphabet         = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	size             = 8
+	alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	size     = 8
 )
 
 // New создает, связывает зависимости и инициализирует новый экземпляр [App].
@@ -69,7 +68,7 @@ func New(cfg *config.Config, log *slog.Logger) (*App, error) {
 	secretKey := os.Getenv("CK_KEY")
 
 	if secretKey == "" {
-		secretKey = defaultSecretKey
+		return nil, fmt.Errorf("secret key is empty")
 	}
 
 	// root router
