@@ -146,11 +146,6 @@ func (a *AuditService) flushOverflow() {
 }
 
 func (a *AuditService) enqueue(e *Event) {
-
-	if _, ok := <-a.jobs; !ok {
-		return
-	}
-
 	select {
 	case a.jobs <- e:
 	default:
