@@ -32,7 +32,7 @@ type AuditService struct {
 	publisher EventPublisher
 	l         *slog.Logger
 	// worker opts
-	jobs            chan *Event
+	events          chan *Event
 	mu              sync.Mutex
 	overflow        []*Event
 	workers         int
@@ -58,7 +58,7 @@ func NewAuditService(
 	return &AuditService{
 		publisher:       publisher,
 		l:               logger,
-		jobs:            make(chan *Event, queueSize),
+		events:          make(chan *Event, queueSize),
 		overflow:        make([]*Event, 0),
 		workers:         workers,
 		pollingInterval: pollingInterval,
@@ -90,8 +90,13 @@ func (a *AuditService) StartAuditWorkerPool(ctx context.Context) {
 }
 
 func (a *AuditService) work(ctx context.Context) {
-	for job := range a.jobs {
-		a.publish(ctx, job)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event := <-a.events:
+			a.publish(ctx, event)
+		}
 	}
 }
 
@@ -128,7 +133,7 @@ func (a *AuditService) flushOverflow() {
 
 	for _, event := range events {
 		select {
-		case a.jobs <- event:
+		case a.events <- event:
 		default:
 			remainingEvents = append(remainingEvents, event)
 		}
@@ -147,7 +152,7 @@ func (a *AuditService) flushOverflow() {
 
 func (a *AuditService) enqueue(e *Event) {
 	select {
-	case a.jobs <- e:
+	case a.events <- e:
 	default:
 		a.mu.Lock()
 		a.overflow = append(a.overflow, e)
@@ -162,13 +167,26 @@ func (a *AuditService) enqueue(e *Event) {
 func (a *AuditService) shutdown(ctx context.Context) {
 	a.l.Info(
 		"audit service shutting down",
-		"pending_jobs", len(a.jobs),
+		"pending_events", len(a.events),
 	)
-
-	close(a.jobs)
-
 	a.wg.Wait()
 
+	for {
+		select {
+		case event := <-a.events:
+			if err := a.publisher.Publish(ctx, event); err != nil {
+				a.l.Error(
+					"failed to publish event",
+					"err", err,
+				)
+			}
+		default:
+			goto overflow
+		}
+
+	}
+
+overflow:
 	a.mu.Lock()
 	events := a.overflow
 	a.overflow = nil
@@ -188,6 +206,7 @@ func (a *AuditService) shutdown(ctx context.Context) {
 	)
 }
 
+// Shutdown запускает процесс плавного завершения работы воркер пула.
 func (a *AuditService) Shutdown(ctx context.Context) {
 	a.shutdown(ctx)
 }
