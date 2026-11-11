@@ -11,12 +11,18 @@ import (
 	"github.com/google/uuid"
 )
 
+// CacheRepository реализует потокобезопасное хранилище сокращенных URL-адресов
+// в оперативной памяти (in-memory) на базе пакета [cache.Cache].
+//
+// Структура дополнительно поддерживает мапу обратного поиска originalMap для быстрой
+// проверки уникальности оригинальных (длинных) ссылок без полного сканирования кэша.
 type CacheRepository struct {
 	c           *cache.Cache
 	originalMap map[string]string
 	mu          sync.RWMutex
 }
 
+// NewInMemoryRepo создает и инициализирует новый экземпляр [CacheRepository].
 func NewInMemoryRepo(cache *cache.Cache) *CacheRepository {
 	return &CacheRepository{
 		c:           cache,
@@ -24,6 +30,11 @@ func NewInMemoryRepo(cache *cache.Cache) *CacheRepository {
 	}
 }
 
+// SoftDeleteURLs выполняет мягкое (логическое) удаление пачки коротких кодов,
+// принадлежащих пользователю, переключая флаг IsDeleted в состояние true внутри кэша.
+//
+// Метод предварительно проверяет состояние контекста [context.Context].
+// Если хотя бы один короткий код отсутствует в системе, операция прерывается с ошибкой [ErrNotExists].
 func (r *CacheRepository) SoftDeleteURLs(ctx context.Context, uid uuid.UUID, shortCodes ...string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -49,6 +60,13 @@ func (r *CacheRepository) SoftDeleteURLs(ctx context.Context, uid uuid.UUID, sho
 
 }
 
+// GetURLs возвращает список всех активных (не удаленных логически) записей [model.ShortenedURL],
+// созданных указанным пользователем [uid].
+//
+// Метод предварительно проверяет состояние контекста [context.Context].
+// Для фильтрации используется слепок данных [cache.Cache.Snapshot], благодаря чему метод
+// не блокирует пишущие операции (Set) на время фильтрации.
+// Возвращает [ErrUnexpectedType], если типы данных в кэше повреждены.
 func (r *CacheRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.ShortenedURL, error) {
 
 	if ctx.Err() != nil {
@@ -71,6 +89,14 @@ func (r *CacheRepository) GetURLs(ctx context.Context, uid uuid.UUID) ([]model.S
 
 }
 
+// Get возвращает оригинальный длинный URL по его короткому буквенно-цифровому коду.
+//
+// Метод предварительно проверяет состояние контекста [context.Context].
+// Использует оптимизированную неблокирующую блокировку чтения (RLock).
+// Возвращаемые ошибки:
+//   - [ErrNotExists]: если переданный короткий код отсутствует в кэше.
+//   - [ErrUnexpectedType]: если тип объекта в кэше не приводится к [model.ShortenedURL].
+//   - [ErrRowGone]: если ссылка найдена, но была мягко удалена пользователем.
 func (r *CacheRepository) Get(ctx context.Context, shortCode string) (string, error) {
 
 	if ctx.Err() != nil {
@@ -100,6 +126,12 @@ func (r *CacheRepository) Get(ctx context.Context, shortCode string) (string, er
 	return shortenedURL.OriginalURL, nil
 }
 
+// CreateBatch атомарно сохраняет массив сокращенных ссылок в оперативной памяти.
+//
+// Метод предварительно проверяет состояние контекста [context.Context].
+// Перед сохранением производится валидация на наличие дубликатов кодов как внутри
+// самого пакета (слайса), так и в глобальном кэше. В случае обнаружения коллизии метод
+// возвращает типизированную ошибку [BatchConflictError] с индексом проблемного элемента.
 func (r *CacheRepository) CreateBatch(ctx context.Context, shortenedURLs []model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -142,6 +174,14 @@ func (r *CacheRepository) CreateBatch(ctx context.Context, shortenedURLs []model
 	return nil
 }
 
+// Create сохраняет новую сокращенную ссылку в оперативной памяти.
+//
+// Метод предварительно проверяет состояние контекста [context.Context].
+// Логика обработки конфликтов уникальности:
+//  1. Наличие переданного длинного URL проверяется по мапе [originalMap]. Если ссылка уже
+//     существует, метод возвращает ошибку [OriginalURLConflictError], содержащую старый короткий код.
+//  2. Если длинный URL уникален, но сгенерированный короткий код (ShortCode) уже занят другим
+//     пользователем в кэше, метод возвращает ошибку [ErrConflictShortCode].
 func (r *CacheRepository) Create(ctx context.Context, shortenedURL model.ShortenedURL) error {
 	if ctx.Err() != nil {
 		return ctx.Err()

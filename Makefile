@@ -13,6 +13,16 @@ num=1
 build: 
 	go build -o $(SERVER_DIR)/$(BINARY_NAME) $(SERVER_DIR)/main.go
 
+run-shortener:
+	go run ./cmd/shortener \
+		-a $$SERVER_ADDRESS \
+		-d $$DATABASE_DSN \
+		-f $$FILE_STORAGE_PATH \
+		--audit-file $$AUDIT_FILE
+
+test-app:
+	go test -v ./...
+
 test:
 	$(MAKE) build
 	./$(TESTER_NAME) \
@@ -20,6 +30,9 @@ test:
 		-test.run=^TestIteration$(num)$$ \
 		-binary-path=$(SERVER_DIR)/$(BINARY_NAME) \
 		-source-path=.
+
+stress-test:
+	k6 run -e SERVER_ADDRESS=$$SERVER_ADDRESS shorten.js
 
 clean:
 	rm -f $(SERVER_DIR)/$(BINARY_NAME)

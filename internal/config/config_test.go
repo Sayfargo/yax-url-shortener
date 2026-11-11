@@ -64,17 +64,23 @@ func TestConfigLoad_WithFlags(t *testing.T) {
 	expectedbaseURL := "http://localhost:9090"
 	expectedDsn := "postgres://user:pass@localhost:5432/db"
 	expectedFileStoragePath := "./urls.json"
+	expectedAuditFile := "./audit.log"
+	expectedAuditURL := "http://localhost:8081/audit"
 
 	t.Setenv("SERVER_ADDRESS", "")
 	t.Setenv("BASE_URL", "")
 	t.Setenv("FILE_STORAGE_PATH", "")
 	t.Setenv("DATABASE_DSN", "")
+	t.Setenv("AUDIT_FILE", "")
+	t.Setenv("AUDIT_URL", "")
 
 	args := []string{
 		"-a", expectedAddr,
 		"-b", expectedbaseURL,
 		"-d", expectedDsn,
 		"-f", expectedFileStoragePath,
+		"--audit-file", expectedAuditFile,
+		"--audit-url", expectedAuditURL,
 	}
 	config, err := Load(args)
 	require.NoError(t, err)
@@ -83,6 +89,8 @@ func TestConfigLoad_WithFlags(t *testing.T) {
 	assert.Equal(t, expectedbaseURL, config.Server.BaseURL)
 	assert.Equal(t, expectedDsn, config.DB.DBDsn)
 	assert.Equal(t, expectedFileStoragePath, config.FileStorage.FilePath)
+	assert.Equal(t, expectedAuditFile, config.Audit.File)
+	assert.Equal(t, expectedAuditURL, config.Audit.URL)
 
 }
 
@@ -92,11 +100,15 @@ func TestConfigLoad_WithEnv(t *testing.T) {
 	expectedbaseURL := "http://localhost:9090"
 	expectedDsn := "postgres://user:pass@localhost:5432/db"
 	expectedFileStoragePath := "./urls.json"
+	expectedAuditFile := "./audit.log"
+	expectedAuditURL := "http://localhost:8081/audit"
 
 	t.Setenv("SERVER_ADDRESS", expectedAddr)
 	t.Setenv("BASE_URL", expectedbaseURL)
 	t.Setenv("DATABASE_DSN", expectedDsn)
 	t.Setenv("FILE_STORAGE_PATH", expectedFileStoragePath)
+	t.Setenv("AUDIT_FILE", expectedAuditFile)
+	t.Setenv("AUDIT_URL", expectedAuditURL)
 
 	args := []string{}
 	config, err := Load(args)
@@ -106,6 +118,8 @@ func TestConfigLoad_WithEnv(t *testing.T) {
 	assert.Equal(t, expectedbaseURL, config.Server.BaseURL)
 	assert.Equal(t, expectedDsn, config.DB.DBDsn)
 	assert.Equal(t, expectedFileStoragePath, config.FileStorage.FilePath)
+	assert.Equal(t, expectedAuditFile, config.Audit.File)
+	assert.Equal(t, expectedAuditURL, config.Audit.URL)
 
 }
 
@@ -114,11 +128,15 @@ func TestConfigLoad_WithDefaultParams(t *testing.T) {
 	expectedbaseURL := "http://localhost:8080"
 	expectedDsn := ""
 	expectedBaseFileStoragePath := ""
+	expectedAuditFile := ""
+	expectedAuditURL := ""
 
 	t.Setenv("SERVER_ADDRESS", "")
 	t.Setenv("BASE_URL", "")
 	t.Setenv("DATABASE_DSN", "")
 	t.Setenv("FILE_STORAGE_PATH", "")
+	t.Setenv("AUDIT_FILE", "")
+	t.Setenv("AUDIT_URL", "")
 
 	args := []string{}
 
@@ -129,4 +147,6 @@ func TestConfigLoad_WithDefaultParams(t *testing.T) {
 	assert.Equal(t, expectedbaseURL, config.Server.BaseURL)
 	assert.Equal(t, expectedDsn, config.DB.DBDsn)
 	assert.Equal(t, expectedBaseFileStoragePath, config.FileStorage.FilePath)
+	assert.Equal(t, expectedAuditFile, config.Audit.File)
+	assert.Equal(t, expectedAuditURL, config.Audit.URL)
 }
