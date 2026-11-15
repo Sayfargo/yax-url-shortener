@@ -9,6 +9,8 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// NoOSExist описывает статический анализатор, запрещающий прямой вызов
+// функции os.Exit внутри функции main пакета main.
 var NoOSExist = &analysis.Analyzer{
 	Name: "noosexist",
 	Doc:  "forbids direct calls to os.Exit in main package",
@@ -22,6 +24,10 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 
 	for _, file := range pass.Files {
+		// Скипаем сгенерированные файлы
+		if ast.IsGenerated(file) {
+			continue
+		}
 
 		// Определим именно декларацию main функции
 		for _, decl := range file.Decls {
