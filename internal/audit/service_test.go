@@ -111,19 +111,34 @@ func TestAuditService_Shutdown(t *testing.T) {
 
 	service.StartAuditWorkerPool(ctx)
 
+	// Пришло два запроса в процессе обычной работы приложения
 	service.Shorten(
 		"user",
 		"https://example.com",
 	)
-
-	cancel()
-
 	service.Shorten(
 		"user1",
 		"https://example1.com",
 	)
-
+	// Даём на отработку воркер пулу, чтобы убедиться что воркеры действительно обрабатывают события
 	require.Eventually(t, func() bool {
 		return len(pub.Events()) == 2
-	}, 2*time.Second, 10*time.Millisecond)
+	}, time.Second, 5*time.Millisecond)
+
+	cancel()
+
+	// Так как по задумке после отмены глобального контекста (завершение работы приложения)
+	// graceful shutdown сервера даёт время на отработку оставшихся соединений,
+	// а значит какие-то запросы могут ещё выполняться, поэтому shutdown воркер пула не закрывает канал
+	// чтобы оставшиеся запросы успели отправить событие в audit service и тогда он не пропадёт а обработается
+	service.Shorten(
+		"user2",
+		"https://example2.com",
+	)
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer shutdownCancel()
+	service.Shutdown(shutdownCtx)
+
+	require.Len(t, pub.Events(), 3)
 }
