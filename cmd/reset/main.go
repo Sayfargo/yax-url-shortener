@@ -4,15 +4,12 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
 	"go/format"
-	"go/importer"
 	"go/parser"
 	"go/token"
-	"go/types"
 	"log"
 	"os"
 	"path/filepath"
@@ -183,21 +180,7 @@ func process(dir string, ignoredDirs ...string) error {
 
 	if len(files) > 0 {
 		log.Printf("Start inspect files in dir %s", dir)
-		var (
-			info         = &types.Info{Types: map[ast.Expr]types.TypeAndValue{}}
-			conf         = types.Config{Importer: importer.Default()}
-			resetStructs = []resettableStruct{}
-			errs         error
-		)
-
-		conf.Error = func(err error) {
-			errs = errors.Join(errs, err)
-		}
-
-		_, _ = conf.Check(dir, fset, files, info)
-		if errs != nil {
-			log.Printf("types config check errs: %v", errs)
-		}
+		var resetStructs = []resettableStruct{}
 
 		for _, file := range files {
 			resetStructs = append(resetStructs, findResetStructs(fset, file)...)

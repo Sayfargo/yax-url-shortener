@@ -22,7 +22,7 @@ func main() {
 		waitgroup.Analyzer,
 		slog.Analyzer,
 		tests.Analyzer,
-		osexitanalyzer.NoOSExist,
+		osexitanalyzer.NoOSExit,
 	}
 	analyzers := staticcheckAnalyzers()
 	mychecks = append(mychecks, analyzers...)

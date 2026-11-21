@@ -11,7 +11,7 @@ import (
 
 // NoOSExist описывает статический анализатор, запрещающий прямой вызов
 // функции os.Exit внутри функции main пакета main.
-var NoOSExist = &analysis.Analyzer{
+var NoOSExit = &analysis.Analyzer{
 	Name: "noosexist",
 	Doc:  "forbids direct calls to os.Exit in main package",
 	Run:  run,

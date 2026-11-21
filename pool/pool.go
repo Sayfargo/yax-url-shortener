@@ -20,22 +20,17 @@ type Pool[T Resettable] struct {
 	pool sync.Pool
 }
 
-// New creates and returns a new initialized Pool for type T.
-// If T is a pointer type, new instances are allocated automatically when the pool is empty.
-func New[T Resettable]() *Pool[T] {
+// New creates and returns a new initialized Pool for type T using the provided factory function.
+func New[T Resettable](new func() T) *Pool[T] {
+	var fn func() any
+	if new != nil {
+		fn = func() any {
+			return new()
+		}
+	}
 	return &Pool[T]{
 		pool: sync.Pool{
-			New: func() any {
-				var empty T
-
-				t := reflect.TypeOf(empty)
-
-				if t != nil && t.Kind() == reflect.Pointer {
-					return reflect.New(t.Elem()).Interface()
-				}
-
-				return empty
-			},
+			New: fn,
 		},
 	}
 }
