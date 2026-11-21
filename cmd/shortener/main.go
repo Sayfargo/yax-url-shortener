@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -12,9 +13,26 @@ import (
 	"github.com/Sayfargo/yax-url-shortener/internal/core/slogger"
 )
 
+var (
+	buildVersion string = notAvailable
+	buildDate    string = notAvailable
+	buildCommit  string = notAvailable
+)
+
+const (
+	notAvailable = "N/A"
+	msg          = "Build version: %s\nBuild date: %s\nBuild commit: %s\n"
+)
+
+func printBuildInfo() {
+	fmt.Fprintf(os.Stdout, msg, buildVersion, buildDate, buildCommit)
+}
+
 func main() {
 	sigCtx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
+
+	printBuildInfo()
 
 	// config
 	cfg, err := config.Load(os.Args[1:])
