@@ -20,6 +20,7 @@ type ShortenedURL struct {
 	IsDeleted bool `json:"is_deleted"`
 }
 
+// generate:reset
 // UserURL описывает структуру элемента для формирования списка ссылок,
 // возвращаемого конкретному пользователю по его запросу.
 type UserURL struct {
