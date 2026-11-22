@@ -37,7 +37,11 @@ func New[T Resettable](new func() T) *Pool[T] {
 
 // Get retrieves an object of type T from the pool, or creates a new one if the pool is empty.
 func (p *Pool[T]) Get() T {
-	return p.pool.Get().(T)
+	v := p.pool.Get()
+	if v != nil {
+		return v.(T)
+	}
+	return *new(T)
 }
 
 // Put resets the state of x and returns it to the pool for future reuse.

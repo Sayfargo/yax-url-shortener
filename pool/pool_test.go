@@ -49,6 +49,23 @@ func TestPool_PutNil(t *testing.T) {
 	})
 }
 
+func TestPool_NewFuncNil(t *testing.T) {
+	t.Run("pointer type", func(t *testing.T) {
+		p := New[*ResetableStruct](nil)
+		rs := p.Get()
+		require.Zero(t, rs)
+		require.NotPanics(t, func() {
+			p.Put(rs)
+		})
+	})
+
+	t.Run("value type", func(t *testing.T) {
+		p := New[NonPointerResetableStruct](nil)
+		rs := p.Get()
+		require.Zero(t, rs)
+	})
+}
+
 func TestEmptyNonPointerPool_Get(t *testing.T) {
 	pool := New(func() NonPointerResetableStruct {
 		return NonPointerResetableStruct{}
